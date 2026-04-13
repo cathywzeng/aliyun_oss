@@ -1,0 +1,18 @@
+# Sensitive configuration files - NEVER commit these
+memory/
+*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+
+# Backup files
+*.bak
+
+# Build artifacts
+node_modules/
+dist/
