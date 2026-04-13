@@ -17,7 +17,6 @@ import tempfile
 import urllib.request
 import urllib.error
 from urllib.parse import urlparse
-from datetime import datetime, timedelta
 
 try:
     import oss2
@@ -66,10 +65,11 @@ def upload_local_to_oss(local_path: str, config: dict = None, sign_expires_secon
     with open(local_path, 'rb') as f:
         bucket.put_object(filename, f.read())
 
-    # 生成签名 URL
-    expiration = int((datetime.now() + timedelta(seconds=sign_expires_seconds)).timestamp())
-    signed_url = bucket.sign_url('GET', filename, sign_expires_seconds)
-    return signed_url
+    # 返回直链（bucket 是 public-read，无需签名；签名 URL 会将 / 编码为 %2F，DashScope 无法访问）
+    region = config['oss_region']
+    bucket_name = config['oss_bucket']
+    direct_url = f"https://{bucket_name}.oss-{region}.aliyuncs.com/{filename}"
+    return direct_url
 
 
 def upload_image_to_oss(image_url: str, config: dict = None, sign_expires_seconds: int = 21600) -> str:

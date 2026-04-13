@@ -237,7 +237,7 @@ export async function processOneMessage(
       const imageArg = _downloadedPic || _downloadedVideo || _downloadedFile || mediaOpts?.mediaUrl || "";
       const result = execSync(
         `python3 "${scriptPath}" --image-url "${imageArg}" --output json`,
-        { timeout: 120, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+        { timeout: 180000, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
       );
       const parsed = JSON.parse(result);
       const replyText = parsed.readable || parsed.raw || "处理完成";

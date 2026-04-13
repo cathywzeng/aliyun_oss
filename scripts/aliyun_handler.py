@@ -17,7 +17,7 @@ import urllib.error
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-from latex_to_unicode import latex_to_unicode, latex_to_plain_text
+from latex_to_unicode import latex_to_unicode
 
 CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/aliyun_config.json")
 MODE_PATH = os.path.expanduser("~/.openclaw/memory/weixin_mode.json")
@@ -154,3 +154,19 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"错误: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+# === DEBUG: test network reachability ===
+def test_api_reachability():
+    import urllib.request
+    config = load_config()
+    test_url = f"https://dashscope.aliyuncs.com/api/v1/apps/{config['dashscope_app_id']}/completion"
+    print(f"[DEBUG] Testing DashScope reachability...", file=sys.stderr)
+    try:
+        req = urllib.request.Request(test_url, method='HEAD', headers={'Authorization': 'Bearer test'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f"[DEBUG] DashScope reachable, status={resp.status}", file=sys.stderr)
+            return True
+    except Exception as e:
+        print(f"[DEBUG] DashScope unreachable: {e}", file=sys.stderr)
+        return False
