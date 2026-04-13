@@ -31,7 +31,7 @@ except Exception as e:
     oss_url = None
 
 # 同时测试 liteapp 的原始公开 URL（应该能用）
-SAMPLE_URL = "https://bailian-datahub-data-share-prod.oss-cn-beijing.aliyuncs.com/runtime/temp/1994673641190580/15155479/301dc8d877c645e59efcada16f2543d0.1776053763798.jpg?Expires=1776312963&OSSAccessKeyId=LTAI5tKzNnKPFwCJSCpxx51h&Signature=DspnnWLlGIMmtymd1%2BGHTFkBAY0%3D"
+SAMPLE_URL = "https://bailian-datahub-data-share-prod.oss-cn-beijing.aliyuncs.com/runtime/temp/1994673641190580/15155479/301dc8d877c645e59efcada16f2543d0.1776053763798.jpg?Expires=1776312963&OSSAccessKeyId=***&Signature=***"
 print(f"\nStep 2: Calling AI API with liteapp URL...")
 raw = call_aliyun_api_simple([SAMPLE_URL], "解题模式", config)
 print(f"  Raw ({len(raw)} chars):")

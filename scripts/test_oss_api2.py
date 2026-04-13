@@ -18,7 +18,7 @@ URLS = [
     # 重新上传的深圳
     "https://<bucket-name>.oss-cn-shenzhen.aliyuncs.com/problem_uploads/1776057282_f06c46.jpg",
     # 原始 liteapp 公开 URL
-    "https://bailian-datahub-data-share-prod.oss-cn-beijing.aliyuncs.com/runtime/temp/1994673641190580/15155479/301dc8d877c645e59efcada16f2543d0.1776053763798.jpg?Expires=1776312963&OSSAccessKeyId=LTAI5tKzNnKPFwCJSCpxx51h&Signature=DspnnWLlGIMmtymd1%2BGHTFkBAY0%3D",
+    "https://bailian-datahub-data-share-prod.oss-cn-beijing.aliyuncs.com/runtime/temp/1994673641190580/15155479/301dc8d877c645e59efcada16f2543d0.1776053763798.jpg?Expires=1776312963&OSSAccessKeyId=***&Signature=***",
 ]
 
 for url in URLS:
