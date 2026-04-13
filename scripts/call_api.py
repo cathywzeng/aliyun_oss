@@ -51,7 +51,7 @@ def call_aliyun_api(image_urls: list, mode: str, config: dict = None) -> str:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             # SSE 响应，需要逐行处理
             result_parts = []
             for line in resp:
@@ -110,7 +110,7 @@ def call_aliyun_api_simple(image_urls: list, mode: str, config: dict = None) -> 
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             output = data.get('output', {})
             # 兼容不同响应格式

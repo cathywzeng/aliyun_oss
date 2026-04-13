@@ -96,7 +96,7 @@
 +      const scriptPath = os.homedir() + "/.openclaw/skills/aliyun-oss/scripts/aliyun_handler.py";
 +      const result = execSync(
 +        `python3 "${scriptPath}" --image-url "${_aliyunMediaOpts.mediaUrl}" --output json`,
-+        { timeout: 120, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
++        { timeout: 180000, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
 +      );
 +      const parsed = JSON.parse(result);
 +      // Send the readable result back via weixin
@@ -109,7 +109,15 @@
 +      logger.info("[aliyun] image intercepted and handled, reply sent");
 +      return; // Skip normal AI pipeline
 +    } catch (err) {
-+      logger.error(`[aliyun] intercept error: ${String(err)}, falling through to AI`);
++      logger.error(`[aliyun] intercept error: ${String(err)}, sending error reply`);
+      try {
+        await sendMessageWeixin({
+          to: ctx.To,
+          text: `⚠️ Aliyun API 超时（120s），请稍后重试`,
+          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+        });
+      } catch (e2) { deps.errLog(`aliyun timeout reply error: ${String(e2)}`); }
+      return;
 +    }
 +  }
 +  // === ALIYUN IMAGE INTERCEPT END ===
