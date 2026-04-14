@@ -411,6 +411,10 @@ def latex_to_unicode(text):
     return result
 
 
+# Alias for backwards compatibility
+latex_to_plain_text = latex_to_unicode
+
+
 if __name__ == '__main__':
     tests = [
         r"$\frac{f_{max}}{M}$",
