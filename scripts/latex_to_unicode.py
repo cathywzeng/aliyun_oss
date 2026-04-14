@@ -395,7 +395,10 @@ def convert_latex(latex_str):
 
 
 def latex_to_unicode(text):
-    """Convert LaTeX in full text to Unicode (handles $$...$$ and $...$)."""
+    """Convert LaTeX in full text to Unicode (handles $$...$$ and $...$).
+    
+    FIX: Also handle pure LaTeX without $ delimiters
+    """
     if not text:
         return text
     result = text
@@ -407,6 +410,10 @@ def latex_to_unicode(text):
     def replace_inline(m):
         return convert_latex(m.group(1))
     result = re.sub(r'\$(.+?)\$', replace_inline, result, flags=re.DOTALL)
+    
+    # FIX: If no $ found, treat entire string as LaTeX
+    if result == text and ('\\' in text or '^' in text or '_' in text):
+        result = convert_latex(text)
 
     return result
 
