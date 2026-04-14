@@ -263,6 +263,17 @@ def convert_latex(latex_str):
     """
     result = latex_str
 
+    # Strip \left and \right delimiters before any other processing
+    # e.g. \left| -> |, \right| -> |, \left( -> (, \right) -> )
+    result = re.sub(r'\\left\s*[|.]', '|', result)
+    result = re.sub(r'\\right\s*[|.]', '|', result)
+    result = re.sub(r'\\left\s*\(', '(', result)
+    result = re.sub(r'\\right\s*\)', ')', result)
+    result = re.sub(r'\\left\s*\[', '[', result)
+    result = re.sub(r'\\right\s*\]', ']', result)
+    result = re.sub(r'\\left\s*\{', '{', result)
+    result = re.sub(r'\\right\s*\}', '}', result)
+
     # Space commands
     result = result.replace('\\quad', ' ')
     result = result.replace('\\qquad', '  ')
