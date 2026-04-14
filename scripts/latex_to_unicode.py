@@ -99,6 +99,19 @@ def _sup_chars(s):
     return ''.join(out)
 
 
+UNICODE_FRACS = {
+    ('1','2'):'½', ('1','3'):'⅓', ('2','3'):'⅔',
+    ('1','4'):'¼', ('3','4'):'¾', ('1','5'):'⅕',
+    ('2','5'):'⅖', ('3','5'):'⅗', ('4','5'):'⅘',
+    ('1','6'):'⅙', ('5','6'):'⅚', ('1','8'):'⅛',
+    ('3','8'):'⅜', ('5','8'):'⅝', ('7','8'):'⅞',
+    ('1','9'):'⅑', ('1','10'):'⅒',
+}
+
+def _to_unicode_frac(num, den):
+    return UNICODE_FRACS.get((num, den))
+
+
 def _convert_frac(s):
     """Replace \\frac{num}{den} using brace-counting. Simple -> a/b, else (a)/(b)."""
     result = []
@@ -132,12 +145,41 @@ def _convert_frac(s):
         def is_simple(x):
             return bool(x) and not any(c in x for c in '{}\\<>+-')
         if is_simple(num_str) and is_simple(den_str):
-            result.append(num_str + '/' + den_str)
+            u_frac = _to_unicode_frac(num_str, den_str)
+            if u_frac:
+                result.append(u_frac)
+            else:
+                result.append(num_str + '/' + den_str)
         else:
             result.append('(' + num_str + ')/(' + den_str + ')')
         i = k
 
     return ''.join(result)
+
+
+def _simplify_frac_coeff(s):
+    """Convert fraction coefficient patterns to Unicode fraction characters."""
+    def repl_paren(m):
+        num, den = m.group(1), m.group(2)
+        after = m.group(3)
+        u = _to_unicode_frac(num, den)
+        if u and after.startswith(' '):
+            return u + after
+        return '(' + num + ')/(' + den + ')' + after
+
+    s2 = re.sub(r'\((\d+)\)\/\((\d+)\)\) ', repl_paren, s)
+    if s2 != s:
+        return s2
+
+    def repl_no_paren(m):
+        num, den = m.group(1), m.group(2)
+        after = m.group(3)
+        u = _to_unicode_frac(num, den)
+        if u and after.startswith(' '):
+            return u + after
+        return num + '/' + den + after
+
+    return re.sub(r'^(\d+)/(\d+)\ ', repl_no_paren, s, count=1)
 
 
 def _strip_text(s):
@@ -175,6 +217,13 @@ def _expand_subscripts(s):
                     changed = True
                     continue
             elif s[i] == '_' and i + 2 < len(s) and s[i+2:i+3].isalnum():
+                c = s[i+1]
+                parts.append(_sub_chars(c))
+                i += 2
+                changed = True
+                continue
+            elif s[i] == '_' and i + 1 < len(s) and s[i+1].isalnum():
+                # Single char subscript at end of string: x_m -> xₘ
                 c = s[i+1]
                 parts.append(_sub_chars(c))
                 i += 2
@@ -221,6 +270,7 @@ def convert_latex(latex_str):
     result = result.replace('\\;', ' ')
     result = result.replace('\\!', '')
     result = result.replace('\\~', ' ')
+    result = result.replace('\\ ', ' ')  # backslash-space
     result = re.sub(r'\\hspace\{[^}]*\}', ' ', result)
 
     # \\sqrt[n]{x} -> (x)^(1/n) and \\sqrt{x} -> √(x)
