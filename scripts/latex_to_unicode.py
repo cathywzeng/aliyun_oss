@@ -185,7 +185,8 @@ def _simplify_frac_coeff(s):
 def _strip_text(s):
     """Remove \\text{...}, \\textbf{...} etc."""
     cmds = [r'\text', r'\textbf', r'\textit', r'\mathsf', r'\mathbf',
-            r'\mathrm', r'\mathit', r'\texttt', r'\rm', r'\bf', r'\it']
+            r'\mathrm', r'\mathit', r'\texttt', r'\rm', r'\bf', r'\it',
+            r'\boldsymbol', r'\bold', r'\bm']
     for cmd in cmds:
         i = 0
         while i < len(s):
@@ -262,6 +263,17 @@ def convert_latex(latex_str):
     Convert a single LaTeX formula (no $$ or $ delimiters).
     """
     result = latex_str
+
+    # Strip \left and \right delimiters before any other processing
+    # e.g. \left| -> |, \right| -> |, \left( -> (, \right) -> )
+    result = re.sub(r'\\left\s*[|.]', '|', result)
+    result = re.sub(r'\\right\s*[|.]', '|', result)
+    result = re.sub(r'\\left\s*\(', '(', result)
+    result = re.sub(r'\\right\s*\)', ')', result)
+    result = re.sub(r'\\left\s*\[', '[', result)
+    result = re.sub(r'\\right\s*\]', ']', result)
+    result = re.sub(r'\\left\s*\{', '{', result)
+    result = re.sub(r'\\right\s*\}', '}', result)
 
     # Space commands
     result = result.replace('\\quad', ' ')
