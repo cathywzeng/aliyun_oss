@@ -1,23 +1,25 @@
-# aliyun-oss OpenClaw Skill
+# curiousbuddy OpenClaw Skill
 
-阿里云 OSS + 通义千问 API 集成，用于 OpenClaw 微信渠道的 AI 解题/批改功能。
+阿里云 OSS + 通义千问 API 集成，用于 OpenClaw 微信渠道的 AI 解题/批改功能，以及 C2E 中英翻译功能。
 
 ## 功能
 
 - 🤖 **AI 解题模式** — 拍照上传题目，AI 返回 LaTeX 解答
 - ✏️ **批改模式** — 拍照上传作业，AI 返回批改结果
+- 🌐 **翻译模式** — 中文文本/语音实时翻译为英文 + 语音合成
 - 📤 **OSS 自动上传** — 图片自动上传到阿里云 OSS
 - 📝 **LaTeX → Unicode** — 公式转换为微信可读格式
 
 ## 目录结构
 
 ```
-aliyun-oss/
+curiousbuddy/
 ├── SKILL.md              # Skill 定义文件
 ├── scripts/
-│   ├── aliyun_handler.py # 主处理器
-│   ├── oss_uploader.py   # OSS 上传工具
-│   ├── call_api.py       # 通义千问 API 调用
+│   ├── aliyun_handler.py # 阿里云解题/批改处理器
+│   ├── c2e_handler.py     # C2E 翻译模式处理器
+│   ├── oss_uploader.py    # OSS 上传工具
+│   ├── call_api.py        # 通义千问 API 调用
 │   ├── latex_to_unicode.py # LaTeX 转 Unicode
 │   └── check_and_patch.py # 插件补丁管理
 ├── patches/              # 补丁文件（按版本）
@@ -41,7 +43,7 @@ aliyun-oss/
 
 2. 运行补丁：
 ```bash
-python3 ~/.openclaw/skills/aliyun-oss/scripts/check_and_patch.py
+python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
 
 ## 使用方法
@@ -56,10 +58,10 @@ python3 ~/.openclaw/skills/aliyun-oss/scripts/check_and_patch.py
 每次 `openclaw-weixin` 升级后，运行：
 
 ```bash
-python3 ~/.openclaw/skills/aliyun-oss/scripts/check_and_patch.py
+python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
 
-补丁历史记录在 `~/.openclaw/skills/aliyun-oss/patch_history.json`。
+补丁历史记录在 `~/.openclaw/skills/curiousbuddy/patch_history.json`。
 
 ## 安全说明
 

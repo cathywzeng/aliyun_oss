@@ -59,7 +59,7 @@ def backup_file(path):
 
 def check_already_patched(content: str) -> bool:
     """检查是否已打过补丁"""
-    return "aliyun_handler" in content or "_ALIYUN_MODE_CHECK" in content
+    return "aliyun_handler" in content or "_ALIYUN_MODE_CHECK" in content or "_C2E_MODE_CHECK" in content
 
 
 def inject_handler_code() -> str:
@@ -160,6 +160,47 @@ async function _aliyunModeCheck(
   }
 }
 // === ALIYUN HANDLER PATCH END ===
+
+// === C2E MODE CHECK START ===
+let _c2eInterceptReply: string | null = null;
+let _c2eInterceptMode: boolean = false;
+
+async function _c2eModeCheck(
+  textBody: string,
+): Promise<{ intercept: boolean; reply?: string }> {
+  const MODE_FILE = os.homedir() + "/.openclaw/memory/weixin_mode.json";
+  const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
+  try {
+    const { readFile, writeFile } = await import("node:fs/promises");
+    let modeData: { c2e: string | null; aliyun?: string | null } = { c2e: null };
+    try {
+      const raw = await readFile(MODE_FILE, "utf-8");
+      modeData = JSON.parse(raw);
+    } catch { /* no mode file */ }
+
+    const c2eMode = modeData?.c2e;
+    // Enter C2E mode
+    if (textBody === "翻译模式" || textBody === "c2e") {
+      await writeFile(MODE_FILE, JSON.stringify({ ...modeData, c2e: "c2e" }), "utf-8");
+      _c2eInterceptReply = "已进入翻译模式，请发送中文文本或语音~";
+      return { intercept: true };
+    }
+    // Exit C2E mode
+    if (textBody === "解除模式" || textBody === "c2e-exit") {
+      const prev = c2eMode;
+      const newData = { ...modeData };
+      delete newData.c2e;
+      await writeFile(MODE_FILE, JSON.stringify(newData), "utf-8");
+      _c2eInterceptReply = prev ? "已解除翻译模式，模式已清空" : "当前无翻译模式，已清空";
+      return { intercept: true };
+    }
+    _c2eInterceptMode = c2eMode === "c2e";
+    return { intercept: false };
+  } catch {
+    return { intercept: false };
+  }
+}
+// === C2E MODE CHECK END ===
 """
     # 在 import path 之后插入
     content = content.replace(
@@ -170,6 +211,124 @@ async function _aliyunModeCheck(
     content = content.replace(
         "/** Extract text body from item_list",
         injection + "\n/** Extract text body from item_list"
+    )
+    return content
+
+
+def inject_c2e_intercept(content: str) -> str:
+    """注入 C2E 翻译拦截逻辑（voice/text/image）"""
+    marker = "_C2E_INTERCEPT"
+    if marker in content:
+        return content
+
+    inject = """
+  // === C2E VOICE INTERCEPT START ===
+  if (_c2eInterceptMode && mediaOpts?.mediaUrl) {
+    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
+    try {
+      const { execSync } = await import("node:child_process");
+      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
+      const result = execSync(
+        `python3 "${scriptPath}" --voice "${mediaOpts.mediaUrl}" --output json`,
+        { timeout: 120, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+      );
+      const parsed = JSON.parse(result);
+      const replyText = parsed.english || "Translation complete";
+      const audioPath = parsed.audio_path;
+      await sendMessageWeixin({
+        to: ctx.To,
+        text: replyText,
+        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+      });
+      if (audioPath) {
+        try {
+          await sendWeixinMediaFile({
+            to: ctx.To,
+            filePath: audioPath,
+            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+          });
+        } catch (e) { deps.errLog(`[c2e] voice send error: ${String(e)}`); }
+      }
+      logger.info("[c2e] voice intercepted and handled");
+      return;
+    } catch (err) {
+      logger.error(`[c2e] voice intercept error: ${String(err)}, falling through to AI`);
+    }
+  }
+  // === C2E VOICE INTERCEPT END ===
+
+  // === C2E TEXT INTERCEPT START ===
+  if (_c2eInterceptMode && textBody) {
+    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
+    try {
+      const { execSync } = await import("node:child_process");
+      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
+      const safeText = textBody.replace(/"/g, '\\\\"');
+      const result = execSync(
+        `python3 "${scriptPath}" --text "${safeText}" --output json`,
+        { timeout: 60, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+      );
+      const parsed = JSON.parse(result);
+      const replyText = parsed.english || "Translation complete";
+      const audioPath = parsed.audio_path;
+      await sendMessageWeixin({
+        to: ctx.To,
+        text: replyText,
+        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+      });
+      if (audioPath) {
+        try {
+          await sendWeixinMediaFile({
+            to: ctx.To,
+            filePath: audioPath,
+            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+          });
+        } catch (e) { deps.errLog(`[c2e] audio send error: ${String(e)}`); }
+      }
+      logger.info("[c2e] text intercepted and handled");
+      return;
+    } catch (err) {
+      logger.error(`[c2e] text intercept error: ${String(err)}, falling through to AI`);
+    }
+  }
+  // === C2E TEXT INTERCEPT END ===
+
+  // === C2E IMAGE WARNING START ===
+  if (_c2eInterceptMode && mediaOpts?.mediaUrl && mediaOpts.mediaType === "image") {
+    sendMessageWeixin({
+      to: ctx.To,
+      text: "⚠️ 翻译模式仅支持文字和语音，请发送文字或语音消息",
+      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+    }).catch(e => deps.errLog(`[c2e] image warning error: ${String(e)}`));
+    return;
+  }
+  // === C2E IMAGE WARNING END ===
+  // === C2E_INTERCEPT ===
+"""
+
+    # 在 aliyun IMAGE INTERCEPT 之后、AI authorization 之前插入 C2E
+    content = content.replace(
+        "  // --- Framework command authorization ---",
+        inject + "  // --- Framework command authorization ---"
+    )
+    return content
+
+
+def inject_c2e_mode_check_call(content: str) -> str:
+    """在 _aliyunModeCheck 调用后添加 C2E 模式检查调用"""
+    marker = "_C2E_MODE_CHECK"
+    if marker in content:
+        return content  # 已打过补丁
+
+    # 在 await _aliyunModeCheck(textBody); 之后添加 C2E 检查
+    inject = """
+  // === C2E MODE CHECK CALL START ===
+  await _c2eModeCheck(textBody);
+  // === C2E MODE CHECK CALL END ===
+"""
+    content = content.replace(
+        "  await _aliyunModeCheck(textBody);\n",
+        "  await _aliyunModeCheck(textBody);\n" + inject
     )
     return content
 
@@ -223,11 +382,10 @@ def inject_reply_intercept(content: str) -> str:
     """注入模式命令的回复拦截（textBody 检查后立即处理）"""
     marker = "_ALIYUN_REPLY_INTERCEPT"
     if marker in content:
-        return content
+        return content  # 已打过补丁
 
     # 在 slash command 处理之后、media download 之前插入
-    # 找到 "const textBody = extractTextBody(full.item_list);" 这行之后
-    # 检查是否有 _aliyunInterceptReply 需要先发送
+    # 检查是否有 _aliyunInterceptReply 或 _c2eInterceptReply 需要先发送
     inject = """
   // === ALIYUN REPLY INTERCEPT START ===
   // 如果是模式命令回复，直接发送并返回
@@ -243,11 +401,25 @@ def inject_reply_intercept(content: str) -> str:
     } catch (e) { deps.errLog(`aliyun reply intercept error: ${String(e)}`); }
     return;
   }
+  // === C2E REPLY INTERCEPT START ===
+  if (_c2eInterceptReply) {
+    const replyText = _c2eInterceptReply;
+    _c2eInterceptReply = null;
+    try {
+      await sendMessageWeixin({
+        to: ctx.To,
+        text: replyText,
+        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+      });
+    } catch (e) { deps.errLog(`c2e reply intercept error: ${String(e)}`); }
+    return;
+  }
+  // === C2E REPLY INTERCEPT END ===
   // === ALIYUN REPLY INTERCEPT END ===
 """
     content = content.replace(
         "  if (mediaItem) {\n    const label = refMediaItem ? \"ref\" : \"inbound\";",
-        "  // === ALIYUN REPLY CHECK ===\n" + inject + "  if (mediaItem) {\n    const label = refMediaItem ? \"ref\" : \"inband\";"
+        "  // === ALIYUN REPLY CHECK ===\n" + inject + "  if (mediaItem) {\n    const label = refMediaItem ? \"ref\" : \"inbound\";"
     )
 
     return content
@@ -256,6 +428,8 @@ def inject_reply_intercept(content: str) -> str:
 def do_patch(content: str) -> str:
     """对 process-message.ts 打补丁"""
     content = inject_mode_check(content)
+    content = inject_c2e_mode_check_call(content)
+    content = inject_c2e_intercept(content)
     content = inject_image_intercept(content)
     content = inject_reply_intercept(content)
     return content
