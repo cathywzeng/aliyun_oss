@@ -1,12 +1,12 @@
 --- /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak	2026-04-13 11:16:53.718203083 +0800
-+++ /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts	2026-04-17 21:57:41.367240331 +0800
++++ /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts	2026-04-17 23:06:48.673918502 +0800
 @@ -1,4 +1,5 @@
  import path from "node:path";
 +import os from "node:os";
  
  import { createTypingCallbacks } from "openclaw/plugin-sdk/channel-runtime";
  import {
-@@ -47,6 +48,82 @@
+@@ -47,6 +48,90 @@
    errLog: (m: string) => void;
  };
  
@@ -36,7 +36,16 @@
 +    }
 +    if (textBody === "解除模式" || textBody === "清空模式" || textBody === "退出模式") {
 +      const prev = mode;
++      // Clear both aliyun and c2e modes
 +      await writeFile(MODE_FILE, JSON.stringify({ mode: null }), "utf-8");
++      // Also clear c2e if present in mode file
++      try {
++        const { readFile, writeFile: wf } = await import("node:fs/promises");
++        const raw = await readFile(MODE_FILE, "utf-8");
++        const data = JSON.parse(raw);
++        delete data["c2e"];
++        await wf(MODE_FILE, JSON.stringify(data), "utf-8");
++      } catch { /* ignore */ }
 +      _aliyunInterceptReply = prev ? `已解除${prev}，模式已清空` : "当前无模式，已清空";
 +      return { intercept: true };
 +    }
@@ -70,13 +79,12 @@
 +      _c2eInterceptReply = "已进入翻译模式，请发送中文文本或语音~";
 +      return { intercept: true };
 +    }
-+    if (textBody === "解除模式" || textBody === "c2e-exit" || textBody === "退出模式") {
-+      const prev = c2eMode;
++    if (textBody === "解除模式" || textBody === "c2e-exit") {
++      // Only clear c2e state; aliyun owns the unified exit reply.
 +      const newData = { ...modeData };
 +      delete newData.c2e;
 +      await writeFile(MODE_FILE, JSON.stringify(newData), "utf-8");
-+      _c2eInterceptReply = prev ? "已解除翻译模式，模式已清空" : "当前无翻译模式，已清空";
-+      return { intercept: true };
++      return { intercept: false }; // let aliyun handle the reply
 +    }
 +    _c2eInterceptMode = c2eMode === "c2e";
 +    return { intercept: false };
@@ -89,7 +97,7 @@
  /** Extract text body from item_list (for slash command detection). */
  function extractTextBody(itemList?: import("../api/types.js").MessageItem[]): string {
    if (!itemList?.length) return "";
-@@ -79,7 +156,12 @@
+@@ -79,7 +164,12 @@
    const debugTrace: string[] = [];
    const debugTs: Record<string, number> = { received: receivedAt };
  
@@ -102,7 +110,7 @@
    if (textBody.startsWith("/")) {
      const slashResult = await handleSlashCommand(textBody, {
        to: full.from_user_id ?? "",
-@@ -137,10 +219,11 @@
+@@ -137,10 +227,11 @@
        )?.ref_msg?.message_item
      : undefined;
  
@@ -115,7 +123,7 @@
      const downloaded = await downloadMediaFromItem(mediaItem, {
        cdnBaseUrl: deps.cdnBaseUrl,
        saveMedia: deps.channelRuntime.media.saveMediaBuffer,
-@@ -161,6 +244,181 @@
+@@ -161,6 +252,181 @@
  
    const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
  
