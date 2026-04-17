@@ -93,28 +93,41 @@ def translate_zh_to_en(chinese: str) -> str:
     """使用 MiniMax Anthropic-compatible API 将中文翻译为英文"""
     if MINIMAX_API_KEY and MINIMAX_BASE_URL:
         try:
-            from openai import OpenAI
-            client = OpenAI(
-                api_key=MINIMAX_API_KEY,
-                base_url=MINIMAX_BASE_URL,
+            import requests
+            resp = requests.post(
+                f"{MINIMAX_BASE_URL}/v1/messages",
+                headers={
+                    "x-api-key": MINIMAX_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "MiniMax-M2.7",
+                    "max_tokens": 1024,
+                    "temperature": 0.3,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Translate the following Chinese to English. "
+                                "Keep names, numbers, dates, and IDs exact. "
+                                "Do not add facts. Output only English text in natural style.\n\n"
+                                f"Chinese:\n{chinese}"
+                            ),
+                        }
+                    ],
+                },
+                timeout=30,
             )
-            response = client.chat.completions.create(
-                model="MiniMax-Text-01",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": (
-                            "Translate the following Chinese to English. "
-                            "Keep names, numbers, dates, and IDs exact. "
-                            "Do not add facts. Output only English text in natural style.\n\n"
-                            f"Chinese:\n{chinese}"
-                        ),
-                    }
-                ],
-                max_tokens=1024,
-                temperature=0.3,
-            )
-            return response.choices[0].message.content.strip()
+            resp.raise_for_status()
+            data = resp.json()
+            # Anthropic messages API returns content as a list
+            content = data.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if block.get("type") == "text":
+                        return block["text"].strip()
+            return str(content)
         except Exception as e:
             print(f"[c2e] MiniMax API error: {e}, falling back to Ollama", file=sys.stderr)
 
@@ -129,18 +142,23 @@ def translate_zh_to_en(chinese: str) -> str:
     return clean_ollama(out) or "(translation failed)"
 
 
-def tts_edge(text: str, out_mp3: Path) -> Path:
+def tts_edge(text: str, out_mp3: Path) -> Path | None:
     """使用 Edge TTS 将英文文本转为语音"""
     if not Path(EDGE_TTS_SCRIPT).exists():
-        raise RuntimeError(f"Edge TTS script not found: {EDGE_TTS_SCRIPT}")
-    run_cmd([
-        NODE_BIN,
-        EDGE_TTS_SCRIPT,
-        text,
-        "--voice", "en-US-AriaNeural",
-        "--output", str(out_mp3),
-    ])
-    return out_mp3
+        print(f"[c2e] Edge TTS script not found, skipping audio: {EDGE_TTS_SCRIPT}", file=sys.stderr)
+        return None
+    try:
+        run_cmd([
+            NODE_BIN,
+            EDGE_TTS_SCRIPT,
+            text,
+            "--voice", "en-US-AriaNeural",
+            "--output", str(out_mp3),
+        ])
+        return out_mp3
+    except Exception as e:
+        print(f"[c2e] TTS error: {e}, skipping audio", file=sys.stderr)
+        return None
 
 
 def transcribe_audio(audio_path: Path) -> str:
@@ -171,11 +189,11 @@ def translate_and_speak(text: str) -> dict:
 
     english = translate_zh_to_en(text)
     out_mp3 = TMP_DIR / f"c2e_{os.getpid()}_{len(text)}.mp3"
-    tts_edge(english, out_mp3)
+    audio_path = tts_edge(english, out_mp3)
 
     return {
         "english": english,
-        "audio_path": str(out_mp3),
+        "audio_path": str(audio_path) if audio_path else "",
     }
 
 
@@ -190,12 +208,12 @@ def process_voice(voice_path: str) -> dict:
     chinese = transcribe_audio(audio_path)
     english = translate_zh_to_en(chinese)
     out_mp3 = TMP_DIR / f"c2e_voice_{os.getpid()}_{audio_path.stem}.mp3"
-    tts_edge(english, out_mp3)
+    audio_path_result = tts_edge(english, out_mp3)
 
     return {
         "chinese": chinese,
         "english": english,
-        "audio_path": str(out_mp3),
+        "audio_path": str(audio_path_result) if audio_path_result else "",
     }
 
 
