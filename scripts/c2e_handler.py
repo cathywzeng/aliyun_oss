@@ -16,6 +16,9 @@ from pathlib import Path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
+# Mode file path (shared with aliyun-oss)
+MODE_PATH = os.environ.get("MODE_PATH", "~/.openclaw/memory/weixin_mode.json")
+
 # MiniMax Anthropic-compatible API (for translation)
 MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
 MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
