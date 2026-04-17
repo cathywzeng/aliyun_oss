@@ -1,9 +1,11 @@
 ---
-name: aliyun-oss
-description: 阿里云 OSS + 通义千问 API 集成技能。支持微信/QQ 渠道的图片题目上传、API 调用、LaTeX 转 Unicode。
+name: curiousbuddy
+description: 阿里云 OSS + 通义千问 API 集成技能，支持微信渠道的 AI 解题/批改和 C2E 中英翻译功能。
 ---
 
-# 阿里云 OSS + 通义千问 API 技能
+# curiousbuddy OpenClaw Skill
+
+阿里云 OSS + 通义千问 API 技能（解题/批改）+ C2E 中英翻译。
 
 ## 功能概述
 
