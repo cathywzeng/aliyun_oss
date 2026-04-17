@@ -16,7 +16,9 @@ from pathlib import Path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-MODE_PATH = os.path.expanduser("~/.openclaw/memory/weixin_mode.json")
+# MiniMax Anthropic-compatible API (for translation)
+MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
+MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 OLLAMA_BIN = os.environ.get("OLLAMA_BIN", "ollama")
 WHISPER_BIN = os.environ.get("WHISPER_BIN", "whisper")
@@ -85,7 +87,35 @@ def clean_ollama(text: str) -> str:
 
 
 def translate_zh_to_en(chinese: str) -> str:
-    """使用 Ollama 将中文翻译为英文"""
+    """使用 MiniMax Anthropic-compatible API 将中文翻译为英文"""
+    if MINIMAX_API_KEY and MINIMAX_BASE_URL:
+        try:
+            from openai import OpenAI
+            client = OpenAI(
+                api_key=MINIMAX_API_KEY,
+                base_url=MINIMAX_BASE_URL,
+            )
+            response = client.chat.completions.create(
+                model="MiniMax-Text-01",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "Translate the following Chinese to English. "
+                            "Keep names, numbers, dates, and IDs exact. "
+                            "Do not add facts. Output only English text in natural style.\n\n"
+                            f"Chinese:\n{chinese}"
+                        ),
+                    }
+                ],
+                max_tokens=1024,
+                temperature=0.3,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"[c2e] MiniMax API error: {e}, falling back to Ollama", file=sys.stderr)
+
+    # Fallback to Ollama
     prompt = (
         "Translate the following Chinese to English. "
         "Keep names, numbers, dates, and IDs exact. "
