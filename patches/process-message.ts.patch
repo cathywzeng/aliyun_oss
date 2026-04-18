@@ -199,14 +199,24 @@
 +  }
 +  // === ALIYUN IMAGE INTERCEPT END ===
 +
++  // Helper: check if message has a voice item
++  function _hasVoiceItem(full: any): boolean {
++    if (!full?.item_list) return false;
++    for (const item of full.item_list) {
++      if (item?.voice_item) return true;
++    }
++    return false;
++  }
++
 +  // === C2E VOICE INTERCEPT START ===
-+  if (_c2eInterceptMode && mediaOpts?.decryptedVoicePath) {
++  if (_c2eInterceptMode && (mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
 +    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
 +    try {
 +      const { execSync } = await import("node:child_process");
 +      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
 +      // Try WeChat built-in STT first, fall back to faster-whisper
 +      let voiceText: string | null = null;
++      logger.info(`[c2e] voice intercept fired. decryptedPath=${mediaOpts?.decryptedVoicePath} hasVoice=${_hasVoiceItem(full)}`);
 +      if (full?.item_list) {
 +        for (const item of full.item_list) {
 +          if (item?.voice_item?.text) { voiceText = item.voice_item.text; break; }
