@@ -26,7 +26,7 @@ MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
 MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 OLLAMA_BIN = os.environ.get("OLLAMA_BIN", "ollama")
-WHISPER_USE_FASTER = os.environ.get("WHISPER_USE_FASTER", "1")
+WHISPER_BIN = os.environ.get("WHISPER_BIN", "")
 FASTER_WHISPER_MODEL = os.environ.get("FASTER_WHISPER_MODEL", "tiny")
 NODE_BIN = os.environ.get("NODE_BIN", "node")
 EDGE_TTS_SCRIPT = os.environ.get(
@@ -165,16 +165,32 @@ def tts_edge(text: str, out_mp3: Path) -> Path | None:
 
 
 def transcribe_audio(audio_path: Path) -> str:
-    """使用 faster-whisper 将音频转录为中文文本（tiny 模型，int8 CPU）"""
-    import sys, os
-    sys.path.insert(0, '/home/admin/.local/lib/python3.10/site-packages')
-    # Proxy needed for downloading CTranslate2 model on first run
-    os.environ.setdefault('HTTPS_PROXY', 'http://127.0.0.1:7897')
-    os.environ.setdefault('HTTP_PROXY', 'http://127.0.0.1:7897')
-    from faster_whisper import WhisperModel
-    model = WhisperModel(FASTER_WHISPER_MODEL, device='cpu', compute_type='int8')
-    segments, _ = model.transcribe(str(audio_path), language='zh', beam_size=1)
-    return ''.join(s.text for s in segments).strip()
+    """使用 Whisper 将音频转录为中文文本
+    - 若 WHISPER_BIN 设定了路径，调用 whisper CLI
+    - 否则使用 faster-whisper（tiny + int8 CPU，已本地缓存）
+    """
+    if WHISPER_BIN:
+        # Use whisper CLI
+        import subprocess
+        result = subprocess.run(
+            [WHISPER_BIN, str(audio_path),
+             "--model", "tiny", "--task", "transcribe",
+             "--language", "zh", "--output_format", "txt",
+             "--output_dir", str(TMP_DIR)],
+            capture_output=True, text=True, timeout=60
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "whisper CLI failed")
+        txt_path = TMP_DIR / f"{audio_path.stem}.txt"
+        return txt_path.read_text(encoding="utf-8").strip()
+    else:
+        # Use faster-whisper (CTranslate2 model, ~8x faster than PyTorch)
+        import sys
+        sys.path.insert(0, '/home/admin/.local/lib/python3.10/site-packages')
+        from faster_whisper import WhisperModel
+        model = WhisperModel(FASTER_WHISPER_MODEL, device='cpu', compute_type='int8')
+        segments, _ = model.transcribe(str(audio_path), language='zh', beam_size=1)
+        return ''.join(s.text for s in segments).strip()
 
 
 def translate_and_speak(text: str) -> dict:
