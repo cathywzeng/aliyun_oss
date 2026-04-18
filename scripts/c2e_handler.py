@@ -26,7 +26,8 @@ MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
 MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 OLLAMA_BIN = os.environ.get("OLLAMA_BIN", "ollama")
-WHISPER_BIN = os.environ.get("WHISPER_BIN", "whisper")
+WHISPER_USE_FASTER = os.environ.get("WHISPER_USE_FASTER", "1")
+FASTER_WHISPER_MODEL = os.environ.get("FASTER_WHISPER_MODEL", "tiny")
 NODE_BIN = os.environ.get("NODE_BIN", "node")
 EDGE_TTS_SCRIPT = os.environ.get(
     "EDGE_TTS_SCRIPT",
@@ -164,16 +165,16 @@ def tts_edge(text: str, out_mp3: Path) -> Path | None:
 
 
 def transcribe_audio(audio_path: Path) -> str:
-    """使用 Whisper 将音频转录为中文文本"""
-    import whisper
-
-    model = whisper.load_model("turbo")
-    result = model.transcribe(
-        str(audio_path),
-        task="transcribe",
-        language="zh",
-    )
-    return result["text"].strip()
+    """使用 faster-whisper 将音频转录为中文文本（tiny 模型，int8 CPU）"""
+    import sys, os
+    sys.path.insert(0, '/home/admin/.local/lib/python3.10/site-packages')
+    # Proxy needed for downloading CTranslate2 model on first run
+    os.environ.setdefault('HTTPS_PROXY', 'http://127.0.0.1:7897')
+    os.environ.setdefault('HTTP_PROXY', 'http://127.0.0.1:7897')
+    from faster_whisper import WhisperModel
+    model = WhisperModel(FASTER_WHISPER_MODEL, device='cpu', compute_type='int8')
+    segments, _ = model.transcribe(str(audio_path), language='zh', beam_size=1)
+    return ''.join(s.text for s in segments).strip()
 
 
 def translate_and_speak(text: str) -> dict:
