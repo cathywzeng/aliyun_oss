@@ -200,15 +200,32 @@
 +  // === ALIYUN IMAGE INTERCEPT END ===
 +
 +  // === C2E VOICE INTERCEPT START ===
-+  if (_c2eInterceptMode && mediaOpts?.mediaUrl) {
++  if (_c2eInterceptMode && mediaOpts?.decryptedVoicePath) {
 +    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
 +    try {
 +      const { execSync } = await import("node:child_process");
 +      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
-+      const result = execSync(
-+        `python3 "${scriptPath}" --voice "${mediaOpts.mediaUrl}" --output json`,
-+        { timeout: 120, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
-+      );
++      // Try WeChat built-in STT first, fall back to faster-whisper
++      let voiceText: string | null = null;
++      if (full?.item_list) {
++        for (const item of full.item_list) {
++          if (item?.voice_item?.text) { voiceText = item.voice_item.text; break; }
++        }
++      }
++      let result: string;
++      if (voiceText) {
++        result = execSync(
++          `python3 "${scriptPath}" --chinese-text "${voiceText}" --output json`,
++          { timeout: 30, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
++        );
++        logger.info("[c2e] voice (WeChat STT): " + voiceText);
++      } else {
++        result = execSync(
++          `python3 "${scriptPath}" --voice "${mediaOpts.decryptedVoicePath}" --output json`,
++          { timeout: 120, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
++        );
++        logger.info("[c2e] voice (faster-whisper)");
++      }
 +      const parsed = JSON.parse(result);
 +      const replyText = parsed.english || "Translation complete";
 +      const audioPath = parsed.audio_path;
@@ -292,7 +309,7 @@
 +  // === C2E TEXT INTERCEPT END ===
 +
 +  // === C2E IMAGE WARNING START ===
-+  if (_c2eInterceptMode && mediaOpts?.mediaUrl) {
++  if (_c2eInterceptMode && (mediaOpts?.decryptedPicPath || mediaOpts?.decryptedVideoPath || mediaOpts?.decryptedFilePath)) {
 +    sendMessageWeixin({
 +      to: ctx.To,
 +      text: "⚠️ 翻译模式仅支持文字和语音，请发送文字或语音消息",

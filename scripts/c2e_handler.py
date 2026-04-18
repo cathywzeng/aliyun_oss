@@ -252,8 +252,9 @@ def handle_c2e_mode_command(text: str) -> str | None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="C2E 翻译模式处理器")
-    parser.add_argument("--text", help="中文文本输入")
-    parser.add_argument("--voice", help="语音文件路径")
+    parser.add_argument("--text", help="中文文本输入（手动输入）")
+    parser.add_argument("--voice", help="语音文件路径（自动转写）")
+    parser.add_argument("--chinese-text", help="微信已转写的中文文本（跳过 Whisper，直接翻译）")
     parser.add_argument("--output", default="text", choices=["text", "json"], help="输出格式")
     args = parser.parse_args()
 
@@ -266,6 +267,15 @@ if __name__ == "__main__":
                 print(result["english"])
         elif args.voice:
             result = process_voice(args.voice)
+            if args.output == "json":
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+            else:
+                print(result["english"])
+        elif args.chinese_text:
+            english = translate_zh_to_en(args.chinese_text)
+            out_mp3 = TMP_DIR / f"c2e_text_{os.getpid()}.mp3"
+            audio_path_result = tts_edge(english, out_mp3)
+            result = {"chinese": args.chinese_text, "english": english, "audio_path": str(audio_path_result) if audio_path_result else ""}
             if args.output == "json":
                 print(json.dumps(result, ensure_ascii=False, indent=2))
             else:
