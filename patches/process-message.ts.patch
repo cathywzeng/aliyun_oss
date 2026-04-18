@@ -225,7 +225,7 @@
 +      let result: string;
 +      if (voiceText) {
 +        result = execSync(
-+          `python3 "${scriptPath}" --chinese-text "${voiceText}" --output json`,
++          `/usr/bin/python3 "${scriptPath}" --chinese-text "${voiceText}" --output json`,
 +          { timeout: 30, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
 +        );
 +        logger.info("[c2e] voice (WeChat STT): " + voiceText);
@@ -256,7 +256,22 @@
 +      logger.info("[c2e] voice intercepted and handled");
 +      return;
 +    } catch (err) {
-+      logger.error(`[c2e] voice intercept error: ${String(err)}, falling through to AI`);
++      const errMsg = String(err);
++      logger.error(`[c2e] voice intercept error: ${errMsg}`);
++      let replyText = "⚠️ 翻译处理失败，请稍后重试";
++      if (errMsg.includes("ETIMEDOUT") || errMsg.includes("TimedOut")) {
++        replyText = "⚠️ 翻译处理超时，请稍后重试";
++      } else if (errMsg.includes("ENOENT") || errMsg.includes("not found")) {
++        replyText = "⚠️ 翻译脚本未找到，请检查配置";
++      }
++      try {
++        await sendMessageWeixin({
++          to: ctx.To,
++          text: replyText,
++          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        });
++      } catch (e2) { deps.errLog(`[c2e] timeout reply error: ${String(e2)}`); }
++      return;
 +    }
 +  }
 +  // === C2E VOICE INTERCEPT END ===
