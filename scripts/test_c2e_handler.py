@@ -192,46 +192,34 @@ class TestTTSEdge(unittest.TestCase):
         """测试 TTS 脚本不存在"""
         mock_exists.return_value = False
         out_mp3 = Path("/tmp/test.mp3")
-        
-        with self.assertRaises(RuntimeError) as context:
-            tts_edge("Hello world", out_mp3)
-        
-        self.assertIn("not found", str(context.exception))
+
+        result = tts_edge("Hello world", out_mp3)
+
+        self.assertIsNone(result)
 
 
 class TestTranscribeAudio(unittest.TestCase):
     """Whisper 语音识别测试"""
 
-    @patch("c2e_handler.WHISPER_BIN", "whisper")
-    @patch("c2e_handler.subprocess.run")
-    @patch("c2e_handler.Path.exists")
-    @patch("c2e_handler.TMP_DIR")
-    def test_transcribe_success(self, mock_tmp_dir, mock_exists, mock_subprocess):
+    @patch("c2e_handler.whisper")
+    def test_transcribe_success(self, mock_whisper):
         """测试语音识别成功"""
-        mock_subprocess.return_value = MagicMock(returncode=0)
-        mock_exists.return_value = True
-        
-        # Mock the txt file that whisper would create
-        mock_txt_file = MagicMock()
-        mock_txt_file.read_text.return_value = "你好世界"
-        mock_tmp_dir.__truediv__.return_value = mock_txt_file
-        
+        mock_model = MagicMock()
+        mock_whisper.load_model.return_value = mock_model
+        mock_model.transcribe.return_value = {"text": "你好世界"}
+
         result = transcribe_audio(Path("/tmp/test.mp3"))
-        
+
         self.assertEqual(result, "你好世界")
 
-    @patch("c2e_handler.WHISPER_BIN", "whisper")
-    @patch("c2e_handler.subprocess.run")
-    def test_transcribe_failure(self, mock_subprocess):
+    @patch("c2e_handler.whisper")
+    def test_transcribe_failure(self, mock_whisper):
         """测试语音识别失败"""
-        mock_subprocess.return_value = MagicMock(
-            returncode=1,
-            stderr="Error: model not found"
-        )
-        
-        with self.assertRaises(RuntimeError) as context:
+        mock_whisper.load_model.side_effect = Exception("model not found")
+
+        with self.assertRaises(Exception) as context:
             transcribe_audio(Path("/tmp/test.mp3"))
-        
+
         self.assertIn("model not found", str(context.exception))
 
 
