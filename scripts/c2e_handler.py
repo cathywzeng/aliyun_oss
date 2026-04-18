@@ -13,6 +13,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import whisper
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
@@ -163,21 +165,15 @@ def tts_edge(text: str, out_mp3: Path) -> Path | None:
 
 def transcribe_audio(audio_path: Path) -> str:
     """使用 Whisper 将音频转录为中文文本"""
-    TMP_DIR.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        WHISPER_BIN, str(audio_path),
-        "--model", "turbo",
-        "--task", "transcribe",
-        "--output_format", "txt",
-        "--output_dir", str(TMP_DIR),
-    ]
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    if p.returncode != 0:
-        raise RuntimeError(p.stderr.strip() or "whisper failed")
-    txt_path = TMP_DIR / f"{audio_path.stem}.txt"
-    if not txt_path.exists():
-        raise RuntimeError(f"transcript file not found")
-    return txt_path.read_text(encoding="utf-8").strip()
+    import whisper
+
+    model = whisper.load_model("turbo")
+    result = model.transcribe(
+        str(audio_path),
+        task="transcribe",
+        language="zh",
+    )
+    return result["text"].strip()
 
 
 def translate_and_speak(text: str) -> dict:
