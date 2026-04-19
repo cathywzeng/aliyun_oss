@@ -67,9 +67,12 @@ async function _aliyunModeCheck(
     } catch { /* no mode file */ }
 
     const mode = modeData?.mode;
-    if (textBody === "解题模式" || textBody === "批改模式") {
+    if (textBody === "解题模式" || textBody === "批改模式" || textBody === "解题思路") {
       await writeFile(MODE_FILE, JSON.stringify({ mode: textBody }), "utf-8");
-      _aliyunInterceptReply = `已进入${textBody}，请发送图片~`;
+      const hint = textBody === "解题思路"
+        ? "已进入解题思路模式，请发送题目图片~"
+        : `已进入${textBody}，请发送图片~`;
+      _aliyunInterceptReply = hint;
       return { intercept: true };
     }
     if (textBody === "解除模式" || textBody === "清空模式" || textBody === "退出模式") {
