@@ -10,11 +10,8 @@ mkdir -p ~/.openclaw/memory
 # 2. Check env_config.json
 if [ ! -f ~/.openclaw/memory/env_config.json ]; then
     echo "⚠️  env_config.json not found, copying from skill..."
-    mkdir -p ~/.openclaw/memory
     cp "$(dirname "$0")/env_config.json" ~/.openclaw/memory/env_config.json 2>/dev/null || true
     echo "⚠️  Please edit ~/.openclaw/memory/env_config.json with your real credentials"
-    echo "   - Set NODE_BIN to your node path if not in PATH"
-    echo "   - Set EDGE_TTS_MODULE_PATH to your npm global modules path"
 else
     echo "✅ env_config.json exists"
 fi
@@ -70,13 +67,6 @@ fi
 
 # 5. Check Whisper (optional)
 echo "=== Checking Whisper ==="
-MISSING_WHISPER=""
-for p in whisper "$HOME/.local/bin/whisper"; do
-    if command -v "$p" &>/dev/null; then
-        MISSING_WHISPER=""
-        break
-    fi
-done
 if command -v whisper &>/dev/null; then
     echo "✅ Whisper found"
 else
