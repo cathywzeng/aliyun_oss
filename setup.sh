@@ -10,36 +10,73 @@ mkdir -p ~/.openclaw/memory
 # 2. Check env_config.json
 if [ ! -f ~/.openclaw/memory/env_config.json ]; then
     echo "⚠️  env_config.json not found, copying from skill..."
+    mkdir -p ~/.openclaw/memory
     cp "$(dirname "$0")/env_config.json" ~/.openclaw/memory/env_config.json 2>/dev/null || true
     echo "⚠️  Please edit ~/.openclaw/memory/env_config.json with your real credentials"
+    echo "   - Set NODE_BIN to your node path if not in PATH"
+    echo "   - Set EDGE_TTS_MODULE_PATH to your npm global modules path"
 else
     echo "✅ env_config.json exists"
 fi
 
 # 3. Check Python dependencies
 echo "=== Checking Python dependencies ==="
-python3 -c "import openai" 2>/dev/null || echo "⚠️  openai not installed (pip install openai)"
-python3 -c "import requests" 2>/dev/null || echo "⚠️  requests not installed (pip install requests)"
+MISSING_PYTHON=""
+python3 -c "import openai" 2>/dev/null || MISSING_PYTHON="$MISSING_PYTHON openai"
+python3 -c "import requests" 2>/dev/null || MISSING_PYTHON="$MISSING_PYTHON requests"
+if [ -n "$MISSING_PYTHON" ]; then
+    echo "⚠️  Missing: $MISSING_PYTHON"
+    echo "   Install: pip install$MISSING_PYTHON"
+else
+    echo "✅ Python dependencies OK"
+fi
 
 # 4. Check Node.js and edge-tts
 echo "=== Checking Node.js ==="
-if command -v node &>/dev/null; then
-    echo "✅ Node.js found: $(node --version)"
-    if command -v npm &>/dev/null; then
-        if npm list -g node-edge-tts &>/dev/null; then
+
+# Try standard PATH first, then common non-standard locations
+NODE_BIN=""
+for p in node "/opt/homebrew/bin/node" "$HOME/.nvm/versions/node/*/bin/node"; do
+    if [ -x "$p" ] 2>/dev/null || command -v "$p" &>/dev/null; then
+        NODE_BIN="$p"
+        break
+    fi
+done
+
+NPM_BIN=""
+for p in npm "/opt/homebrew/bin/npm" "$HOME/.nvm/versions/node/*/bin/npm"; do
+    if [ -x "$p" ] 2>/dev/null || command -v "$p" &>/dev/null; then
+        NPM_BIN="$p"
+        break
+    fi
+done
+
+if [ -n "$NODE_BIN" ]; then
+    echo "✅ Node.js found: $("$NODE_BIN" --version)"
+    if [ -n "$NPM_BIN" ]; then
+        if "$NPM_BIN" list -g node-edge-tts &>/dev/null; then
             echo "✅ node-edge-tts installed"
         else
-            echo "⚠️  node-edge-tts not installed (npm install -g node-edge-tts)"
+            echo "⚠️  node-edge-tts not installed (run: $NPM_BIN install -g node-edge-tts)"
         fi
     else
-        echo "⚠️  npm not found"
+        echo "⚠️  npm not found (Node.js at $NODE_BIN)"
     fi
 else
     echo "⚠️  Node.js not found"
+    echo "   Install from: https://nodejs.org/"
+    echo "   Or on macOS: brew install node"
 fi
 
 # 5. Check Whisper (optional)
 echo "=== Checking Whisper ==="
+MISSING_WHISPER=""
+for p in whisper "$HOME/.local/bin/whisper"; do
+    if command -v "$p" &>/dev/null; then
+        MISSING_WHISPER=""
+        break
+    fi
+done
 if command -v whisper &>/dev/null; then
     echo "✅ Whisper found"
 else
