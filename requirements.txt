@@ -1,3 +1,2 @@
 oss2
 requests
-openai
