@@ -35,6 +35,26 @@ import { handleSlashCommand } from "./slash-commands.js";
 
 const MEDIA_OUTBOUND_TEMP_DIR = path.join(resolvePreferredOpenClawTmpDir(), "weixin/media/outbound-temp");
 
+/** Load config from env_config.json (falls back to aliyun_config.json for legacy). */
+async function loadEnvConfig(): Promise<Record<string, string>> {
+  const cfgPath = os.homedir() + "/.openclaw/memory/env_config.json";
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile(cfgPath, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    // fallback to legacy aliyun_config.json
+    const legacyPath = os.homedir() + "/.openclaw/memory/aliyun_config.json";
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const raw = await readFile(legacyPath, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+}
+
 /** Dependencies for processOneMessage, injected by the monitor loop. */
 export type ProcessMessageDeps = {
   accountId: string;
@@ -410,9 +430,10 @@ export async function processOneMessage(
   // === C2E TEXT INTERCEPT START ===
   if (_c2eInterceptMode && textBody) {
     try {
-      const apiKey = process.env.ANTHROPIC_AUTH_TOKEN;
-      const baseUrl = process.env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic";
-      if (!apiKey) throw new Error("ANTHROPIC_AUTH_TOKEN not set");
+      const envCfg = await loadEnvConfig();
+      const apiKey = envCfg.MINIMAX_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
+      const baseUrl = envCfg.MINIMAX_BASE_URL || process.env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic";
+      if (!apiKey) throw new Error("MINIMAX_API_KEY not set in env_config.json");
       const resp = await fetch(`${baseUrl}/v1/messages`, {
         method: "POST",
         headers: {
@@ -444,7 +465,7 @@ export async function processOneMessage(
       });
       // TTS via edge-tts
       try {
-        const edgeTtsPath = process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
+        const edgeTtsPath = envCfg.EDGE_TTS_MODULE_PATH || process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
         const { EdgeTTS } = require(edgeTtsPath);
         const tts = new EdgeTTS({ voice: "en-US-AriaNeural", lang: "en-US" });
         const audioPath = `/tmp/c2e_tts_${Date.now()}.mp3`;
