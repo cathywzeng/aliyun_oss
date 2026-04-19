@@ -29,7 +29,9 @@ curiousbuddy/
 
 ## 首次配置
 
-1. 将以下内容写入 `~/.openclaw/memory/aliyun_config.json`（**不要提交到 Git**）：
+### 1. 配置文件
+
+将以下内容写入 `~/.openclaw/memory/env_config.json`（**不要提交到 Git**，敏感信息用占位符）：
 
 ```json
 {
@@ -38,11 +40,19 @@ curiousbuddy/
   "oss_access_key": "YOUR_AK",
   "oss_secret": "YOUR_SK",
   "dashscope_api_key": "YOUR_API_KEY",
-  "dashscope_app_id": "YOUR_APP_ID"
+  "dashscope_app_id": "YOUR_APP_ID",
+  "MINIMAX_API_KEY": "YOUR_MINIMAX_KEY",
+  "MINIMAX_BASE_URL": "https://api.minimaxi.com/anthropic",
+  "EDGE_TTS_MODULE_PATH": "/opt/homebrew/lib/node_modules/node-edge-tts"
 }
 ```
 
-2. 运行补丁：
+> **注意**：`MINIMAX_API_KEY` 用于 C2E 翻译模式，如不使用翻译功能可留空。
+> `EDGE_TTS_MODULE_PATH` 需与本机 Node.js 全局模块路径一致。
+
+如使用旧版 `aliyun_config.json`，功能不受影响（会 fallback 读取）。
+
+### 2. 运行补丁：
 ```bash
 python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
