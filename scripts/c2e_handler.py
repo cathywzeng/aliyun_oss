@@ -34,6 +34,7 @@ EDGE_TTS_SCRIPT = os.environ.get(
 )
 EDGE_TTS_MODULE_PATH = os.environ.get("EDGE_TTS_MODULE_PATH", "")
 TMP_DIR = Path(os.environ.get("TMP_DIR", "/tmp/c2e-wechat"))
+TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_c2e_mode():

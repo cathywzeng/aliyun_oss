@@ -29,6 +29,15 @@ echo "✅ Deployed"
 # 3. Create memory directory
 mkdir -p ~/.openclaw/memory
 
+# 4. Install Node.js dependencies for c2e
+echo "=== Installing c2e Node.js dependencies ==="
+if [ -d ~/.openclaw/skills/curiousbuddy/c2e ]; then
+    (cd ~/.openclaw/skills/curiousbuddy/c2e && npm install)
+    echo "✅ c2e npm dependencies installed"
+else
+    echo "⚠️  c2e directory not found, skipping npm install"
+fi
+
 # 2. Check env_config.json
 if [ ! -f ~/.openclaw/memory/env_config.json ]; then
     echo "⚠️  env_config.json not found, copying template..."
