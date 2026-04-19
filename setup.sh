@@ -49,16 +49,9 @@ else
     echo "✅ env_config.json exists"
 fi
 
-# 3. Check Python dependencies
-echo "=== Checking Python dependencies ==="
-MISSING_PYTHON=""
-python3 -c "import requests" 2>/dev/null || MISSING_PYTHON="$MISSING_PYTHON requests"
-if [ -n "$MISSING_PYTHON" ]; then
-    echo "⚠️  Missing: $MISSING_PYTHON"
-    echo "   Install: pip install$MISSING_PYTHON"
-else
-    echo "✅ Python dependencies OK"
-fi
+# 3. Install Python dependencies
+echo "=== Installing Python dependencies ==="
+python3 -m pip install --quiet oss2 requests openai 2>/dev/null && echo "✅ Python dependencies installed" || echo "⚠️  pip install failed (oss2/requests/openai)"
 
 # 4. Check Node.js and edge-tts
 echo "=== Checking Node.js ==="
