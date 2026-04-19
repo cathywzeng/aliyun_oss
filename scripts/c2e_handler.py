@@ -20,20 +20,36 @@ sys.path.insert(0, SCRIPT_DIR)
 # Mode file path (shared with aliyun-oss)
 MODE_PATH = os.environ.get("MODE_PATH", "~/.openclaw/memory/weixin_mode.json")
 
+# Config file path
+CONFIG_PATH = "~/.openclaw/memory/env_config.json"
+
+def load_env_config():
+    """Load config from env_config.json, falling back to env vars for testing."""
+    path = os.path.expanduser(CONFIG_PATH)
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+def get_env_or_config(key: str, default: str = "") -> str:
+    """Get value from env var first (for testing), then config file."""
+    val = os.environ.get(key, "")
+    if val:
+        return val
+    cfg = load_env_config()
+    return cfg.get(key, default)
+
 # MiniMax Anthropic-compatible API (for translation)
-MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
-MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
-OLLAMA_BIN = os.environ.get("OLLAMA_BIN", "ollama")
-WHISPER_BIN = os.environ.get("WHISPER_BIN", "")
-FASTER_WHISPER_MODEL = os.environ.get("FASTER_WHISPER_MODEL", "tiny")
-NODE_BIN = os.environ.get("NODE_BIN", "node")
-EDGE_TTS_SCRIPT = os.environ.get(
-    "EDGE_TTS_SCRIPT",
-    str(Path(__file__).parent.parent / "c2e" / "tts-converter.js")
-)
-EDGE_TTS_MODULE_PATH = os.environ.get("EDGE_TTS_MODULE_PATH", "")
-TMP_DIR = Path(os.environ.get("TMP_DIR", "/tmp/c2e-wechat"))
+MINIMAX_API_KEY = get_env_or_config("MINIMAX_API_KEY", "")
+MINIMAX_BASE_URL = get_env_or_config("MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic")
+OLLAMA_MODEL = get_env_or_config("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+OLLAMA_BIN = get_env_or_config("OLLAMA_BIN", "ollama")
+WHISPER_BIN = get_env_or_config("WHISPER_BIN", "")
+FASTER_WHISPER_MODEL = get_env_or_config("FASTER_WHISPER_MODEL", "tiny")
+NODE_BIN = get_env_or_config("NODE_BIN", "node")
+EDGE_TTS_SCRIPT = get_env_or_config("EDGE_TTS_SCRIPT", str(Path(__file__).parent.parent / "c2e" / "tts-converter.js"))
+EDGE_TTS_MODULE_PATH = get_env_or_config("EDGE_TTS_MODULE_PATH", "")
+TMP_DIR = Path(get_env_or_config("TMP_DIR", "/tmp/c2e-wechat"))
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -95,7 +111,8 @@ def clean_ollama(text: str) -> str:
 
 
 def translate_zh_to_en(chinese: str) -> str:
-    """使用 MiniMax Anthropic-compatible API 将中文翻译为英文"""
+    """使用 MiniMax API 或 Ollama API 将中文翻译为英文"""
+    # Try MiniMax first if configured
     if MINIMAX_API_KEY and MINIMAX_BASE_URL:
         try:
             import requests
@@ -134,17 +151,31 @@ def translate_zh_to_en(chinese: str) -> str:
                         return block["text"].strip()
             return str(content)
         except Exception as e:
-            print(f"[c2e] MiniMax API error: {e}, falling back to Ollama", file=sys.stderr)
+            print(f"[c2e] MiniMax API error: {e}", file=sys.stderr)
 
-    # Fallback to Ollama
-    prompt = (
-        "Translate the following Chinese to English. "
-        "Keep names, numbers, dates, and IDs exact. "
-        "Do not add facts. Output only English text in natural style.\n\n"
-        f"Chinese:\n{chinese}"
-    )
-    out = run_cmd([OLLAMA_BIN, "run", OLLAMA_MODEL, prompt])
-    return clean_ollama(out) or "(translation failed)"
+    # Fallback to Ollama API if configured
+    if not OLLAMA_MODEL:
+        return "[翻译错误] 未配置 MINIMAX_API_KEY 或 OLLAMA_MODEL，无法翻译"
+
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "http://localhost:11434/api/generate",
+            data=json.dumps({
+                "model": OLLAMA_MODEL,
+                "prompt": f"Translate the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n{chinese}",
+                "stream": False,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            return result.get("response", "").strip()
+    except Exception as e:
+        print(f"[c2e] Ollama API error: {e}", file=sys.stderr)
+
+    return "[翻译错误] MiniMax 和 Ollama 均不可用，请检查配置"
 
 
 
