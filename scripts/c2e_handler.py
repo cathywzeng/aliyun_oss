@@ -32,6 +32,7 @@ EDGE_TTS_SCRIPT = os.environ.get(
     "EDGE_TTS_SCRIPT",
     str(Path(__file__).parent.parent / "c2e" / "tts-converter.js")
 )
+EDGE_TTS_MODULE_PATH = os.environ.get("EDGE_TTS_MODULE_PATH", "")
 TMP_DIR = Path(os.environ.get("TMP_DIR", "/tmp/c2e-wechat"))
 
 
@@ -77,9 +78,9 @@ def clear_c2e_mode():
 
 
 
-def run_cmd(cmd: list[str], timeout: int = 120) -> str:
+def run_cmd(cmd: list[str], timeout: int = 120, env: Optional[dict] = None) -> str:
     """执行命令并返回 stdout"""
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
     if p.returncode != 0:
         raise RuntimeError(p.stderr.strip() or f"command failed: {' '.join(cmd)}")
     return p.stdout.strip()
@@ -152,13 +153,14 @@ def tts_edge(text: str, out_mp3: Path) -> Optional[Path]:
         print(f"[c2e] Edge TTS script not found, skipping audio: {EDGE_TTS_SCRIPT}", file=sys.stderr)
         return None
     try:
-        run_cmd([
-            NODE_BIN,
-            EDGE_TTS_SCRIPT,
-            text,
-            "--voice", "en-US-AriaNeural",
-            "--output", str(out_mp3),
-        ])
+        node_env = None
+        if EDGE_TTS_MODULE_PATH:
+            node_module_dir = str(Path(EDGE_TTS_MODULE_PATH).parent)
+            node_env = {**os.environ, "NODE_PATH": node_module_dir}
+        run_cmd(
+            [NODE_BIN, EDGE_TTS_SCRIPT, text, "--voice", "en-US-AriaNeural", "--output", str(out_mp3)],
+            env=node_env,
+        )
         return out_mp3
     except Exception as e:
         print(f"[c2e] TTS error: {e}, skipping audio", file=sys.stderr)
