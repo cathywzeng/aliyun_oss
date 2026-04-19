@@ -1,5 +1,5 @@
---- patches/process-message.ts.original	2026-04-19 15:36:36.207084839 +0800
-+++ patches/process-message.ts.current	2026-04-19 17:31:32.926729249 +0800
+--- patches/process-message.ts.original	2026-04-19 18:51:21.366269445 +0800
++++ patches/process-message.ts.current	2026-04-19 20:10:35.246033684 +0800
 @@ -1,4 +1,5 @@
  import path from "node:path";
 +import os from "node:os";
@@ -39,7 +39,7 @@
  
 +
 +// === ALIYUN HANDLER PATCH START ===
-+// aliyun-oss skill auto-injected
++// curiousbuddy skill auto-injected
 +let _aliyunInterceptReply: string | null = null;
 +let _aliyunInterceptMode: string | null = null;
 +
@@ -162,7 +162,7 @@
      const downloaded = await downloadMediaFromItem(mediaItem, {
        cdnBaseUrl: deps.cdnBaseUrl,
        saveMedia: deps.channelRuntime.media.saveMediaBuffer,
-@@ -161,6 +284,219 @@
+@@ -161,6 +284,167 @@
  
    const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
  
@@ -199,7 +199,7 @@
 +  // === C2E REPLY INTERCEPT END ===
 +
 +  // === ALIYUN IMAGE INTERCEPT START ===
-+  // aliyun-oss skill: 在解题/批改模式下，图片直接走 OSS+API 处理
++  // curiousbuddy skill: 在解题/批改模式下，图片直接走 OSS+API 处理
 +  // mediaOpts 在上面已下载完成，使用 decryptedPicPath / decryptedVideoPath
 +  const _downloadedPic = mediaOpts?.decryptedPicPath;
 +  const _downloadedVideo = mediaOpts?.decryptedVideoPath;
@@ -238,135 +238,83 @@
 +  }
 +  // === ALIYUN IMAGE INTERCEPT END ===
 +
-+  // === C2E VOICE INTERCEPT START ===
-+  if (_c2eInterceptMode && (mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
-+    // Try WeChat built-in STT first, fall back to faster-whisper
++  // === C2E INTERCEPT START ===
++  if (_c2eInterceptMode && (textBody || mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
 +    let voiceText: string | null = null;
-+    logger.info(`[c2e] voice intercept fired. decryptedPath=${mediaOpts?.decryptedVoicePath} hasVoice=${_hasVoiceItem(full)} voiceText_len=${(voiceText || "").length}`);
 +    if (full?.item_list) {
 +      for (const item of full.item_list) {
 +        if (item?.voice_item?.text) { voiceText = item.voice_item.text; break; }
 +      }
 +    }
 +    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
-+    try {
-+      const { execFile } = await import("node:child_process");
-+      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
-+      const isWeChatSTT = !!voiceText;
-+      const pythonArgs = isWeChatSTT
-+        ? ['--chinese-text', voiceText, '--output', 'json']
-+        : ['--voice', mediaOpts.decryptedVoicePath, '--output', 'json'];
-+      logger.info("[c2e] execFile python: isWeChatSTT=" + isWeChatSTT);
-+      const { stdout: pyStdout, stderr: pyStderr } = await new Promise((resolve, reject) => {
-+        execFile('/usr/bin/python3', [scriptPath, ...pythonArgs], { timeout: isWeChatSTT ? 120000 : 180000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
-+          if (err) {
-+            if (err.signal === 'SIGTERM') reject(new Error('Python timed out'));
-+            else reject(new Error('Python exited with ' + err.exitCode + ': ' + stderr));
-+          } else {
-+            resolve({ stdout, stderr });
-+          }
-+        });
-+      });
-+      logger.info("[c2e] python stdout: " + pyStdout.substring(0, 100));
-+      const parsed = JSON.parse(pyStdout);
-+      const replyText = parsed.english || "Translation complete";
-+      const audioPath = parsed.audio_path;
-+      await sendMessageWeixin({
-+        to: ctx.To,
-+        text: replyText,
-+        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-+      });
-+      if (audioPath) {
-+        try {
-+          await sendWeixinMediaFile({
-+            to: ctx.To,
-+            filePath: audioPath,
-+            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-+          });
-+        } catch (e) { deps.errLog(`[c2e] voice send error: ${String(e)}`); }
-+      }
-+      logger.info("[c2e] voice intercepted and handled");
-+      return;
-+    } catch (err) {
-+      const errMsg = String(err);
-+      logger.error(`[c2e] voice intercept error: ${errMsg}`);
-+      // Reply with timeout/error message instead of falling through to AI
-+      let replyText = "⚠️ 翻译处理失败，请稍后重试";
-+      if (errMsg.includes("ETIMEDOUT") || errMsg.includes("TimedOut")) {
-+        replyText = "⚠️ 翻译处理超时，请稍后重试";
-+      } else if (errMsg.includes("ENOENT") || errMsg.includes("not found")) {
-+        replyText = "⚠️ 翻译脚本未找到，请检查配置";
-+      }
++    const hasVoice = mediaOpts?.decryptedVoicePath || _hasVoiceItem(full);
++    const hasText = !!textBody;
++    if (!hasVoice && !hasText) { /* no content to translate */ }
++    else {
 +      try {
++        const { execFile } = await import("node:child_process");
++        const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
++        let pythonArgs: string[];
++        let timeout: number;
++        if (hasVoice) {
++          const isWeChatSTT = !!voiceText;
++          pythonArgs = isWeChatSTT
++            ? ['--chinese-text', voiceText!, '--output', 'json']
++            : ['--voice', mediaOpts.decryptedVoicePath!, '--output', 'json'];
++          timeout = isWeChatSTT ? 120000 : 180000;
++        } else {
++          pythonArgs = ['--chinese-text', textBody!, '--output', 'json'];
++          timeout = 120000;
++        }
++        logger.info(`[c2e] execFile python: hasVoice=${hasVoice} hasText=${hasText}`);
++        const { stdout: pyStdout } = await new Promise((resolve, reject) => {
++          execFile('/usr/bin/python3', [scriptPath, ...pythonArgs], { timeout, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
++            if (err) {
++              if (err.signal === 'SIGTERM') reject(new Error('Python timed out'));
++              else reject(new Error('Python exited with ' + err.exitCode + ': ' + stderr));
++            } else {
++              resolve({ stdout, stderr });
++            }
++          });
++        });
++        logger.info("[c2e] python stdout: " + pyStdout.substring(0, 100));
++        const parsed = JSON.parse(pyStdout);
++        const english = parsed.english || "Translation complete";
++        const audioPath = parsed.audio_path;
 +        await sendMessageWeixin({
 +          to: ctx.To,
-+          text: replyText,
++          text: english,
 +          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
 +        });
-+      } catch (e2) { deps.errLog(`[c2e] timeout reply error: ${String(e2)}`); }
-+      return;
++        if (audioPath) {
++          try {
++            await sendWeixinMediaFile({
++              to: ctx.To,
++              filePath: audioPath,
++              opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++            });
++          } catch (e) { deps.errLog(`[c2e] audio send error: ${String(e)}`); }
++        }
++        logger.info("[c2e] intercepted and handled");
++        return;
++      } catch (err) {
++        const errMsg = String(err);
++        logger.error(`[c2e] intercept error: ${errMsg}`);
++        let replyText = "⚠️ 翻译处理失败，请稍后重试";
++        if (errMsg.includes("ETIMEDOUT") || errMsg.includes("TimedOut")) replyText = "⚠️ 翻译处理超时，请稍后重试";
++        else if (errMsg.includes("ENOENT") || errMsg.includes("not found")) replyText = "⚠️ 翻译脚本未找到，请检查配置";
++        try {
++          await sendMessageWeixin({
++            to: ctx.To,
++            text: replyText,
++            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++          });
++        } catch (e2) { deps.errLog(`[c2e] reply error: ${String(e2)}`); }
++        return;
++      }
 +    }
 +  }
-+  // === C2E VOICE INTERCEPT END ===
-+
-+  // === C2E TEXT INTERCEPT START ===
-+  if (_c2eInterceptMode && textBody) {
-+    try {
-+      const envCfg = await loadEnvConfig();
-+      const apiKey = envCfg.MINIMAX_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-+      const baseUrl = envCfg.MINIMAX_BASE_URL || process.env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic";
-+      if (!apiKey) throw new Error("MINIMAX_API_KEY not set in env_config.json");
-+      const resp = await fetch(`${baseUrl}/v1/messages`, {
-+        method: "POST",
-+        headers: {
-+          "x-api-key": apiKey,
-+          "anthropic-version": "2023-06-01",
-+          "content-type": "application/json",
-+        },
-+        body: JSON.stringify({
-+          model: "MiniMax-M2.7",
-+          max_tokens: 1024,
-+          temperature: 0.3,
-+          messages: [{
-+            role: "user",
-+            content: `Translate the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n${textBody}`,
-+          }],
-+        }),
-+      });
-+      if (!resp.ok) throw new Error(`API error ${resp.status}`);
-+      const data = await resp.json();
-+      const content = data.content ?? [];
-+      let english = "Translation complete";
-+      for (const block of content) {
-+        if (block.type === "text") english = block.text.trim();
-+      }
-+      await sendMessageWeixin({
-+        to: ctx.To,
-+        text: english,
-+        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-+      });
-+      // TTS via edge-tts
-+      try {
-+        const edgeTtsPath = envCfg.EDGE_TTS_MODULE_PATH || process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
-+        const { EdgeTTS } = require(edgeTtsPath);
-+        const tts = new EdgeTTS({ voice: "en-US-AriaNeural", lang: "en-US" });
-+        const audioPath = `/tmp/c2e_tts_${Date.now()}.mp3`;
-+        await tts.ttsPromise(english, audioPath);
-+        await sendWeixinMediaFile({
-+          to: ctx.To,
-+          filePath: audioPath,
-+          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-+        });
-+        logger.info("[c2e] text + TTS sent");
-+      } catch (ttsErr) {
-+        logger.error(`[c2e] TTS error: ${String(ttsErr)}, text-only sent`);
-+      }
-+      return;
-+    } catch (err) {
-+      logger.error(`[c2e] text intercept error: ${String(err)}, falling through to AI`);
-+    }
-+  }
-+  // === C2E TEXT INTERCEPT END ===
++  // === C2E INTERCEPT END ===
 +
 +  // === C2E IMAGE WARNING START ===
 +  if (_c2eInterceptMode && (mediaOpts?.decryptedPicPath || mediaOpts?.decryptedVideoPath || mediaOpts?.decryptedFilePath)) {

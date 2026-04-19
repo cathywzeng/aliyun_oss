@@ -17,7 +17,7 @@ with open(CONFIG_FILE) as f:
 # Construct OSS URL from config
 bucket = config["oss_bucket"]
 region = config.get("oss_region", "cn-shenzhen")
-OSS_URL = f"https://{bucket}.oss-{region}.aliyuncs.com/problem_uploads/1776057178_42c41d.jpg"
+OSS_URL = f"https://{bucket}.oss-{region}.aliyuncs.com//ai-homework-helper/uploads/solver/2026-04-10T08-01-09-344Z-20260409215118_76_2.jpg"
 
 print(f"Image: {OSS_URL}")
 print(f"Calling AI API...")
