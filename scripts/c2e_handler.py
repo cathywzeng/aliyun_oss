@@ -12,7 +12,7 @@ import argparse
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import whisper
 
@@ -233,7 +233,7 @@ def process_voice(voice_path: str) -> dict:
     }
 
 
-def handle_c2e_mode_command(text: str) -> str | None:
+def handle_c2e_mode_command(text: str) -> Optional[str]:
     """
     处理 C2E 模式命令
     "翻译模式" / "c2e" → 进入翻译模式
