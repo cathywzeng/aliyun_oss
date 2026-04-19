@@ -444,7 +444,8 @@ export async function processOneMessage(
       });
       // TTS via edge-tts
       try {
-        const { EdgeTTS } = require("/home/admin/.openclaw/skills/curiousbuddy/c2e/node_modules/node-edge-tts");
+        const edgeTtsPath = process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
+        const { EdgeTTS } = require(edgeTtsPath);
         const tts = new EdgeTTS({ voice: "en-US-AriaNeural", lang: "en-US" });
         const audioPath = `/tmp/c2e_tts_${Date.now()}.mp3`;
         await tts.ttsPromise(english, audioPath);

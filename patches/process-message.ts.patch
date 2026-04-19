@@ -1,5 +1,5 @@
 --- /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak	2026-04-13 11:16:53.718203083 +0800
-+++ /home/admin/workspace/curiousbuddy/patches/process-message.ts.current	2026-04-19 15:30:54.541523400 +0800
++++ /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts	2026-04-19 17:16:07.013481947 +0800
 @@ -1,4 +1,5 @@
  import path from "node:path";
 +import os from "node:os";
@@ -135,7 +135,7 @@
      const downloaded = await downloadMediaFromItem(mediaItem, {
        cdnBaseUrl: deps.cdnBaseUrl,
        saveMedia: deps.channelRuntime.media.saveMediaBuffer,
-@@ -161,6 +264,217 @@
+@@ -161,6 +264,218 @@
  
    const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
  
@@ -319,7 +319,8 @@
 +      });
 +      // TTS via edge-tts
 +      try {
-+        const { EdgeTTS } = require("/home/admin/.openclaw/skills/curiousbuddy/c2e/node_modules/node-edge-tts");
++        const edgeTtsPath = process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
++        const { EdgeTTS } = require(edgeTtsPath);
 +        const tts = new EdgeTTS({ voice: "en-US-AriaNeural", lang: "en-US" });
 +        const audioPath = `/tmp/c2e_tts_${Date.now()}.mp3`;
 +        await tts.ttsPromise(english, audioPath);
