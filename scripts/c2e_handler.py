@@ -14,8 +14,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Union
 
-import whisper
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
@@ -188,8 +186,7 @@ def transcribe_audio(audio_path: Path) -> str:
         return txt_path.read_text(encoding="utf-8").strip()
     else:
         # Use faster-whisper (CTranslate2 model, ~8x faster than PyTorch)
-        import sys
-        sys.path.insert(0, '/home/admin/.local/lib/python3.10/site-packages')
+        import whisper
         from faster_whisper import WhisperModel
         model = WhisperModel(FASTER_WHISPER_MODEL, device='cpu', compute_type='int8')
         segments, _ = model.transcribe(str(audio_path), language='zh', beam_size=1)
