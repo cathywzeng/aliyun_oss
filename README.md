@@ -70,6 +70,8 @@ curiousbuddy/
 python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
 
+> `check_and_patch.py` 会自动备份原文件为 `.original`，应用 `process-message.ts.patch`，并验证与 `process-message.ts.current` 是否一致。
+
 ## 使用方法
 
 ### 解题/批改模式
@@ -96,25 +98,19 @@ python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 
 ## 补丁管理
 
-openclaw-weixin 升级后，手动应用补丁：
+openclaw-weixin 升级后，运行：
 
 ```bash
-# 1. 备份原文件
-cp ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak.bak
-
-# 2. 应用补丁
-patch -s ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak < ~/.openclaw/skills/curiousbuddy/patches/process-message.ts.patch
-
-# 3. 验证
-diff ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts && echo "PASS"
+python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
 
-或使用 rsync 从本地同步已打补丁的文件：
-```bash
-rsync -av curiousbuddy/patches/process-message.ts.current cathy@host:~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts
-```
+脚本会自动：
+1. 备份原文件为 `.original`（仅首次）
+2. 从 `.original` 恢复到干净状态
+3. 应用 `process-message.ts.patch`
+4. 验证与 `process-message.ts.current` 一致
 
-补丁文件位于 `~/.openclaw/skills/curiousbuddy/patches/process-message.ts.patch`。
+补丁文件位于 `~/.openclaw/skills/curiousbuddy/patches/`。
 
 ## 安全说明
 
