@@ -4,14 +4,38 @@ set -e
 
 echo "=== curiousbuddy Setup ==="
 
-# 1. Create memory directory
+# 0. Check if already installed
+if [ -d ~/.openclaw/skills/curiousbuddy ]; then
+    echo "⚠️  curiousbuddy already exists at ~/.openclaw/skills/curiousbuddy"
+    echo "   Pull latest: cd ~/.openclaw/skills/curiousbuddy && git pull"
+    echo "   Or remove it first to re-install"
+    exit 0
+fi
+
+# 1. Clone latest curiousbuddy from GitHub
+echo "=== Cloning curiousbuddy ==="
+SKILL_DIR="$(mktemp -d)"
+git clone https://github.com/cathywzeng/curiousbuddy.git "$SKILL_DIR"
+cd "$SKILL_DIR"
+git checkout master
+echo "✅ Cloned to $SKILL_DIR"
+
+# 2. Deploy to ~/.openclaw/skills/curiousbuddy
+echo "=== Deploying to ~/.openclaw/skills/curiousbuddy ==="
+mkdir -p ~/.openclaw/skills
+mv "$SKILL_DIR" ~/.openclaw/skills/curiousbuddy
+echo "✅ Deployed"
+
+# 3. Create memory directory
 mkdir -p ~/.openclaw/memory
 
 # 2. Check env_config.json
 if [ ! -f ~/.openclaw/memory/env_config.json ]; then
-    echo "⚠️  env_config.json not found, copying from skill..."
-    cp "$(dirname "$0")/env_config.json" ~/.openclaw/memory/env_config.json 2>/dev/null || true
+    echo "⚠️  env_config.json not found, copying template..."
+    cp ~/.openclaw/skills/curiousbuddy/env_config.json ~/.openclaw/memory/env_config.json 2>/dev/null || true
     echo "⚠️  Please edit ~/.openclaw/memory/env_config.json with your real credentials"
+    echo "   - Set NODE_BIN to your node path if not in PATH"
+    echo "   - Set EDGE_TTS_MODULE_PATH to your npm global modules path"
 else
     echo "✅ env_config.json exists"
 fi
@@ -19,7 +43,6 @@ fi
 # 3. Check Python dependencies
 echo "=== Checking Python dependencies ==="
 MISSING_PYTHON=""
-python3 -c "import openai" 2>/dev/null || MISSING_PYTHON="$MISSING_PYTHON openai"
 python3 -c "import requests" 2>/dev/null || MISSING_PYTHON="$MISSING_PYTHON requests"
 if [ -n "$MISSING_PYTHON" ]; then
     echo "⚠️  Missing: $MISSING_PYTHON"
@@ -75,8 +98,7 @@ fi
 
 # 6. Apply patch to openclaw-weixin
 echo "=== Applying patch ==="
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if python3 "$SCRIPT_DIR/scripts/check_and_patch.py"; then
+if python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py; then
     echo "✅ Patch applied"
 else
     echo "⚠️  Patch failed"
