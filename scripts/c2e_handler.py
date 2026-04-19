@@ -12,6 +12,7 @@ import argparse
 import re
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import whisper
 
@@ -147,7 +148,7 @@ def translate_zh_to_en(chinese: str) -> str:
 
 
 
-def tts_edge(text: str, out_mp3: Path) -> Path | None:
+def tts_edge(text: str, out_mp3: Path) -> Optional[Path]:
     """使用 Edge TTS 将文本转为语音（用于翻译模式英文输出）"""
     if not Path(EDGE_TTS_SCRIPT).exists():
         print(f"[c2e] Edge TTS script not found, skipping audio: {EDGE_TTS_SCRIPT}", file=sys.stderr)
