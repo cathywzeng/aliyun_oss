@@ -1,6 +1,12 @@
---- /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak	2026-04-19 18:31:21.427614712 +0800
-+++ /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts	2026-04-19 18:31:29.407884591 +0800
-@@ -35,6 +35,26 @@
+--- patches/process-message.ts.original	2026-04-19 15:36:36.207084839 +0800
++++ patches/process-message.ts.current	2026-04-19 17:31:32.926729249 +0800
+@@ -1,4 +1,5 @@
+ import path from "node:path";
++import os from "node:os";
+ 
+ import { createTypingCallbacks } from "openclaw/plugin-sdk/channel-runtime";
+ import {
+@@ -34,6 +35,26 @@
  
  const MEDIA_OUTBOUND_TEMP_DIR = path.join(resolvePreferredOpenClawTmpDir(), "weixin/media/outbound-temp");
  
@@ -27,25 +33,41 @@
  /** Dependencies for processOneMessage, injected by the monitor loop. */
  export type ProcessMessageDeps = {
    accountId: string;
-@@ -67,14 +87,26 @@
-     } catch { /* no mode file */ }
+@@ -47,6 +68,102 @@
+   errLog: (m: string) => void;
+ };
  
-     const mode = modeData?.mode;
--    if (textBody === "解题模式" || textBody === "批改模式") {
++
++// === ALIYUN HANDLER PATCH START ===
++// aliyun-oss skill auto-injected
++let _aliyunInterceptReply: string | null = null;
++let _aliyunInterceptMode: string | null = null;
++
++async function _aliyunModeCheck(
++  textBody: string,
++): Promise<{ intercept: boolean; reply?: string }> {
++  const MODE_FILE = os.homedir() + "/.openclaw/memory/weixin_mode.json";
++  try {
++    const { readFile, writeFile } = await import("node:fs/promises");
++    let modeData: { mode: string | null } = { mode: null };
++    try {
++      const raw = await readFile(MODE_FILE, "utf-8");
++      modeData = JSON.parse(raw);
++    } catch { /* no mode file */ }
++
++    const mode = modeData?.mode;
 +    if (textBody === "解题模式" || textBody === "批改模式" || textBody === "解题思路") {
-       await writeFile(MODE_FILE, JSON.stringify({ mode: textBody }), "utf-8");
--      _aliyunInterceptReply = `已进入${textBody}，请发送图片~`;
++      await writeFile(MODE_FILE, JSON.stringify({ mode: textBody }), "utf-8");
 +      const hint = textBody === "解题思路"
 +        ? "已进入解题思路模式，请发送题目图片~"
 +        : `已进入${textBody}，请发送图片~`;
 +      _aliyunInterceptReply = hint;
-       return { intercept: true };
-     }
--    if (textBody === "解除模式" || textBody === "清空模式") {
++      return { intercept: true };
++    }
 +    if (textBody === "解除模式" || textBody === "清空模式" || textBody === "退出模式") {
-       const prev = mode;
++      const prev = mode;
 +      // Clear both aliyun and c2e modes
-       await writeFile(MODE_FILE, JSON.stringify({ mode: null }), "utf-8");
++      await writeFile(MODE_FILE, JSON.stringify({ mode: null }), "utf-8");
 +      // Also clear c2e if present in mode file
 +      try {
 +        const { readFile, writeFile: wf } = await import("node:fs/promises");
@@ -54,13 +76,17 @@
 +        delete data["c2e"];
 +        await wf(MODE_FILE, JSON.stringify(data), "utf-8");
 +      } catch { /* ignore */ }
-       _aliyunInterceptReply = prev ? `已解除${prev}，模式已清空` : "当前无模式，已清空";
-       return { intercept: true };
-     }
-@@ -86,6 +118,52 @@
- }
- // === ALIYUN HANDLER PATCH END ===
- 
++      _aliyunInterceptReply = prev ? `已解除${prev}，模式已清空` : "当前无模式，已清空";
++      return { intercept: true };
++    }
++    _aliyunInterceptMode = mode ?? null;
++    return { intercept: false };
++  } catch {
++    return { intercept: false };
++  }
++}
++// === ALIYUN HANDLER PATCH END ===
++
 +// === C2E MODE CHECK START ===
 +let _c2eInterceptReply: string | null = null;
 +let _c2eInterceptMode: boolean = false;
@@ -110,18 +136,53 @@
  /** Extract text body from item_list (for slash command detection). */
  function extractTextBody(itemList?: import("../api/types.js").MessageItem[]): string {
    if (!itemList?.length) return "";
-@@ -123,6 +201,7 @@
+@@ -79,7 +196,12 @@
+   const debugTrace: string[] = [];
+   const debugTs: Record<string, number> = { received: receivedAt };
  
-   // Check if this is a mode-setting text message (before slash command check)
-   await _aliyunModeCheck(textBody);
++  // Extract text body early for mode check and slash command detection
+   const textBody = extractTextBody(full.item_list);
++
++  // Check if this is a mode-setting text message (before slash command check)
++  await _aliyunModeCheck(textBody);
 +  await _c2eModeCheck(textBody);
    if (textBody.startsWith("/")) {
      const slashResult = await handleSlashCommand(textBody, {
        to: full.from_user_id ?? "",
-@@ -222,6 +301,21 @@
-   }
-   // === ALIYUN REPLY INTERCEPT END ===
+@@ -137,10 +259,11 @@
+       )?.ref_msg?.message_item
+     : undefined;
  
++  // --- Download media first (needed by aliyun intercept below) ---
+   const mediaDownloadStart = Date.now();
+   const mediaItem = mainMediaItem ?? refMediaItem;
+   if (mediaItem) {
+-    const label = refMediaItem ? "ref" : "inbound";
++    const label = refMediaItem ? "ref" : "inband";
+     const downloaded = await downloadMediaFromItem(mediaItem, {
+       cdnBaseUrl: deps.cdnBaseUrl,
+       saveMedia: deps.channelRuntime.media.saveMediaBuffer,
+@@ -161,6 +284,219 @@
+ 
+   const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
+ 
++  // === ALIYUN REPLY INTERCEPT START ===
++  // 如果是模式命令（比如"已进入解题模式"）的回复，直接发送并返回
++  // 仅当本次消息没有图片时才处理（图片会走下面的 image intercept）
++  if (_aliyunInterceptReply) {
++    const replyText = _aliyunInterceptReply;
++    _aliyunInterceptReply = null;
++    try {
++      await sendMessageWeixin({
++        to: full.from_user_id ?? "",
++        text: replyText,
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: full.context_token ?? undefined },
++      });
++    } catch (e) { deps.errLog(`aliyun reply intercept error: ${String(e)}`); }
++    return;
++  }
++  // === ALIYUN REPLY INTERCEPT END ===
++
 +  // === C2E REPLY INTERCEPT START ===
 +  if (_c2eInterceptReply) {
 +    const replyText = _c2eInterceptReply;
@@ -137,22 +198,46 @@
 +  }
 +  // === C2E REPLY INTERCEPT END ===
 +
-   // === ALIYUN IMAGE INTERCEPT START ===
-   // aliyun-oss skill: 在解题/批改模式下，图片直接走 OSS+API 处理
-   // mediaOpts 在上面已下载完成，使用 decryptedPicPath / decryptedVideoPath
-@@ -232,7 +326,7 @@
-   if (_hasDownloadedMedia && _aliyunInterceptMode) {
-     try {
-       const { execSync } = await import("node:child_process");
--      const scriptPath = os.homedir() + "/.openclaw/skills/aliyun-oss/scripts/aliyun_handler.py";
++  // === ALIYUN IMAGE INTERCEPT START ===
++  // aliyun-oss skill: 在解题/批改模式下，图片直接走 OSS+API 处理
++  // mediaOpts 在上面已下载完成，使用 decryptedPicPath / decryptedVideoPath
++  const _downloadedPic = mediaOpts?.decryptedPicPath;
++  const _downloadedVideo = mediaOpts?.decryptedVideoPath;
++  const _downloadedFile = mediaOpts?.decryptedFilePath;
++  const _hasDownloadedMedia = _downloadedPic || _downloadedVideo || _downloadedFile;
++  if (_hasDownloadedMedia && _aliyunInterceptMode) {
++    try {
++      const { execSync } = await import("node:child_process");
 +      const scriptPath = os.homedir() + "/.openclaw/skills/curiousbuddy/scripts/aliyun_handler.py";
-       // Prefer downloaded local path, fall back to mediaUrl from message
-       const imageArg = _downloadedPic || _downloadedVideo || _downloadedFile || mediaOpts?.mediaUrl || "";
-       const result = execSync(
-@@ -262,6 +356,147 @@
-   }
-   // === ALIYUN IMAGE INTERCEPT END ===
- 
++      // Prefer downloaded local path, fall back to mediaUrl from message
++      const imageArg = _downloadedPic || _downloadedVideo || _downloadedFile || mediaOpts?.mediaUrl || "";
++      const result = execSync(
++        `python3 "${scriptPath}" --image-url "${imageArg}" --output json`,
++        { timeout: 180000, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
++      );
++      const parsed = JSON.parse(result);
++      const replyText = parsed.readable || parsed.raw || "处理完成";
++      await sendMessageWeixin({
++        to: ctx.To,
++        text: replyText,
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++      });
++      logger.info("[aliyun] image intercepted, OSS upload + API call done, reply sent");
++      return;
++    } catch (err) {
++      logger.error(`[aliyun] intercept error: ${String(err)}, sending error reply`);
++      try {
++        await sendMessageWeixin({
++          to: ctx.To,
++          text: `⚠️ Aliyun API 超时（120s），请稍后重试`,
++          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        });
++      } catch (e2) { deps.errLog(`aliyun timeout reply error: ${String(e2)}`); }
++      return;
++    }
++  }
++  // === ALIYUN IMAGE INTERCEPT END ===
++
 +  // === C2E VOICE INTERCEPT START ===
 +  if (_c2eInterceptMode && (mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
 +    // Try WeChat built-in STT first, fall back to faster-whisper
