@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/.openclaw/skills/aliyun-oss/scripts"))
+sys.path.insert(0, os.path.expanduser("~/.openclaw/skills/curiousbuddy/scripts"))
 
 import json, os
 MODE_FILE = os.path.expanduser("~/.openclaw/memory/weixin_mode.json")
@@ -14,8 +14,10 @@ CONFIG_FILE = os.path.expanduser("~/.openclaw/memory/env_config.json")
 with open(CONFIG_FILE) as f:
     config = json.load(f)
 
-# 用刚上传到 OSS 的公开图片 URL（刚才 Step 1 的结果）
-OSS_URL = "https://<bucket-name>.oss-cn-shenzhen.aliyuncs.com/problem_uploads/1776057178_42c41d.jpg"
+# Construct OSS URL from config
+bucket = config["oss_bucket"]
+region = config.get("oss_region", "cn-shenzhen")
+OSS_URL = f"https://{bucket}.oss-{region}.aliyuncs.com/problem_uploads/1776057178_42c41d.jpg"
 
 print(f"Image: {OSS_URL}")
 print(f"Calling AI API...")

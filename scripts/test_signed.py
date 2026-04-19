@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """完整流程测试：上传 -> 签名URL -> DashScope API -> LaTeX转换"""
 import sys
-sys.path.insert(0, '/home/admin/.openclaw/skills/aliyun-oss/scripts')
+sys.path.insert(0, os.path.expanduser("~/.openclaw/skills/curiousbuddy/scripts"))
 import json
 import os
 
