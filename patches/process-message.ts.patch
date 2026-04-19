@@ -1,0 +1,440 @@
+--- /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.original	2026-04-19 18:15:13.390237828 +0800
++++ /home/admin/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts	2026-04-19 18:21:30.932082580 +0800
+@@ -35,6 +35,26 @@
+ 
+ const MEDIA_OUTBOUND_TEMP_DIR = path.join(resolvePreferredOpenClawTmpDir(), "weixin/media/outbound-temp");
+ 
++/** Load config from env_config.json (falls back to aliyun_config.json for legacy). */
++async function loadEnvConfig(): Promise<Record<string, string>> {
++  const cfgPath = os.homedir() + "/.openclaw/memory/env_config.json";
++  try {
++    const { readFile } = await import("node:fs/promises");
++    const raw = await readFile(cfgPath, "utf-8");
++    return JSON.parse(raw);
++  } catch {
++    // fallback to legacy aliyun_config.json
++    const legacyPath = os.homedir() + "/.openclaw/memory/aliyun_config.json";
++    try {
++      const { readFile } = await import("node:fs/promises");
++      const raw = await readFile(legacyPath, "utf-8");
++      return JSON.parse(raw);
++    } catch {
++      return {};
++    }
++  }
++}
++
+ /** Dependencies for processOneMessage, injected by the monitor loop. */
+ export type ProcessMessageDeps = {
+   accountId: string;
+@@ -50,7 +70,7 @@
+ 
+ 
+ // === ALIYUN HANDLER PATCH START ===
+-// curiousbuddy skill auto-injected
++// aliyun-oss skill auto-injected
+ let _aliyunInterceptReply: string | null = null;
+ let _aliyunInterceptMode: string | null = null;
+ 
+@@ -67,14 +87,26 @@
+     } catch { /* no mode file */ }
+ 
+     const mode = modeData?.mode;
+-    if (textBody === "解题模式" || textBody === "批改模式") {
++    if (textBody === "解题模式" || textBody === "批改模式" || textBody === "解题思路") {
+       await writeFile(MODE_FILE, JSON.stringify({ mode: textBody }), "utf-8");
+-      _aliyunInterceptReply = `已进入${textBody}，请发送图片~`;
++      const hint = textBody === "解题思路"
++        ? "已进入解题思路模式，请发送题目图片~"
++        : `已进入${textBody}，请发送图片~`;
++      _aliyunInterceptReply = hint;
+       return { intercept: true };
+     }
+-    if (textBody === "解除模式" || textBody === "清空模式") {
++    if (textBody === "解除模式" || textBody === "清空模式" || textBody === "退出模式") {
+       const prev = mode;
++      // Clear both aliyun and c2e modes
+       await writeFile(MODE_FILE, JSON.stringify({ mode: null }), "utf-8");
++      // Also clear c2e if present in mode file
++      try {
++        const { readFile, writeFile: wf } = await import("node:fs/promises");
++        const raw = await readFile(MODE_FILE, "utf-8");
++        const data = JSON.parse(raw);
++        delete data["c2e"];
++        await wf(MODE_FILE, JSON.stringify(data), "utf-8");
++      } catch { /* ignore */ }
+       _aliyunInterceptReply = prev ? `已解除${prev}，模式已清空` : "当前无模式，已清空";
+       return { intercept: true };
+     }
+@@ -92,32 +124,28 @@
+ 
+ async function _c2eModeCheck(
+   textBody: string,
+-): Promise<{ intercept: boolean; reply?: string }> {
++): Promise<{ intercept: boolean }> {
+   const MODE_FILE = os.homedir() + "/.openclaw/memory/weixin_mode.json";
+-  const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
+   try {
+     const { readFile, writeFile } = await import("node:fs/promises");
+-    let modeData: { c2e: string | null; aliyun?: string | null } = { c2e: null };
++    let modeData: { c2e?: string | null; [key: string]: unknown } = {};
+     try {
+       const raw = await readFile(MODE_FILE, "utf-8");
+       modeData = JSON.parse(raw);
+     } catch { /* no mode file */ }
+ 
+     const c2eMode = modeData?.c2e;
+-    // Enter C2E mode
+     if (textBody === "翻译模式" || textBody === "c2e") {
+       await writeFile(MODE_FILE, JSON.stringify({ ...modeData, c2e: "c2e" }), "utf-8");
+       _c2eInterceptReply = "已进入翻译模式，请发送中文文本或语音~";
+       return { intercept: true };
+     }
+-    // Exit C2E mode
+     if (textBody === "解除模式" || textBody === "c2e-exit") {
+-      const prev = c2eMode;
++      // Only clear c2e state; aliyun owns the unified exit reply.
+       const newData = { ...modeData };
+       delete newData.c2e;
+       await writeFile(MODE_FILE, JSON.stringify(newData), "utf-8");
+-      _c2eInterceptReply = prev ? "已解除翻译模式，模式已清空" : "当前无翻译模式，已清空";
+-      return { intercept: true };
++      return { intercept: false }; // let aliyun handle the reply
+     }
+     _c2eInterceptMode = c2eMode === "c2e";
+     return { intercept: false };
+@@ -127,6 +155,15 @@
+ }
+ // === C2E MODE CHECK END ===
+ 
++/** Check if message has a voice item (any voice, with or without local path). */
++function _hasVoiceItem(full: any): boolean {
++  if (!full?.item_list) return false;
++  for (const item of full.item_list) {
++    if (item?.voice_item) return true;
++  }
++  return false;
++}
++
+ /** Extract text body from item_list (for slash command detection). */
+ function extractTextBody(itemList?: import("../api/types.js").MessageItem[]): string {
+   if (!itemList?.length) return "";
+@@ -159,7 +196,12 @@
+   const debugTrace: string[] = [];
+   const debugTs: Record<string, number> = { received: receivedAt };
+ 
++  // Extract text body early for mode check and slash command detection
+   const textBody = extractTextBody(full.item_list);
++
++  // Check if this is a mode-setting text message (before slash command check)
++  await _aliyunModeCheck(textBody);
++  await _c2eModeCheck(textBody);
+   if (textBody.startsWith("/")) {
+     const slashResult = await handleSlashCommand(textBody, {
+       to: full.from_user_id ?? "",
+@@ -217,126 +259,226 @@
+       )?.ref_msg?.message_item
+     : undefined;
+ 
++  // --- Download media first (needed by aliyun intercept below) ---
+   const mediaDownloadStart = Date.now();
+   const mediaItem = mainMediaItem ?? refMediaItem;
+-  // === ALIYUN REPLY CHECK ===
++  if (mediaItem) {
++    const label = refMediaItem ? "ref" : "inband";
++    const downloaded = await downloadMediaFromItem(mediaItem, {
++      cdnBaseUrl: deps.cdnBaseUrl,
++      saveMedia: deps.channelRuntime.media.saveMediaBuffer,
++      log: deps.log,
++      errLog: deps.errLog,
++      label,
++    });
++    Object.assign(mediaOpts, downloaded);
++  }
++  const mediaDownloadMs = Date.now() - mediaDownloadStart;
++
++  if (debug) {
++    debugTrace.push(mediaItem
++      ? `│ mediaDownload: type=${mediaItem.type} cost=${mediaDownloadMs}ms`
++      : "│ mediaDownload: none",
++    );
++  }
++
++  const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
+ 
+   // === ALIYUN REPLY INTERCEPT START ===
+-  // 如果是模式命令回复，直接发送并返回
++  // 如果是模式命令（比如"已进入解题模式"）的回复，直接发送并返回
++  // 仅当本次消息没有图片时才处理（图片会走下面的 image intercept）
+   if (_aliyunInterceptReply) {
+     const replyText = _aliyunInterceptReply;
+     _aliyunInterceptReply = null;
+     try {
+       await sendMessageWeixin({
+-        to: ctx.To,
++        to: full.from_user_id ?? "",
+         text: replyText,
+-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: full.context_token ?? undefined },
+       });
+     } catch (e) { deps.errLog(`aliyun reply intercept error: ${String(e)}`); }
+     return;
+   }
++  // === ALIYUN REPLY INTERCEPT END ===
++
+   // === C2E REPLY INTERCEPT START ===
+   if (_c2eInterceptReply) {
+     const replyText = _c2eInterceptReply;
+     _c2eInterceptReply = null;
+     try {
+       await sendMessageWeixin({
+-        to: ctx.To,
++        to: full.from_user_id ?? "",
+         text: replyText,
+-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: full.context_token ?? undefined },
+       });
+     } catch (e) { deps.errLog(`c2e reply intercept error: ${String(e)}`); }
+     return;
+   }
+   // === C2E REPLY INTERCEPT END ===
+-  // === ALIYUN REPLY INTERCEPT END ===
+-  if (mediaItem) {
+-    const label = refMediaItem ? "ref" : "inbound";
+-    const downloaded = await downloadMediaFromItem(mediaItem, {
+-      cdnBaseUrl: deps.cdnBaseUrl,
+-      saveMedia: deps.channelRuntime.media.saveMediaBuffer,
+-      log: deps.log,
+-      errLog: deps.errLog,
+-      label,
+-    });
+-    Object.assign(mediaOpts, downloaded);
+-  }
+-  const mediaDownloadMs = Date.now() - mediaDownloadStart;
+ 
+-  if (debug) {
+-    debugTrace.push(mediaItem
+-      ? `│ mediaDownload: type=${mediaItem.type} cost=${mediaDownloadMs}ms`
+-      : "│ mediaDownload: none",
+-    );
++  // === ALIYUN IMAGE INTERCEPT START ===
++  // aliyun-oss skill: 在解题/批改模式下，图片直接走 OSS+API 处理
++  // mediaOpts 在上面已下载完成，使用 decryptedPicPath / decryptedVideoPath
++  const _downloadedPic = mediaOpts?.decryptedPicPath;
++  const _downloadedVideo = mediaOpts?.decryptedVideoPath;
++  const _downloadedFile = mediaOpts?.decryptedFilePath;
++  const _hasDownloadedMedia = _downloadedPic || _downloadedVideo || _downloadedFile;
++  if (_hasDownloadedMedia && _aliyunInterceptMode) {
++    try {
++      const { execSync } = await import("node:child_process");
++      const scriptPath = os.homedir() + "/.openclaw/skills/curiousbuddy/scripts/aliyun_handler.py";
++      // Prefer downloaded local path, fall back to mediaUrl from message
++      const imageArg = _downloadedPic || _downloadedVideo || _downloadedFile || mediaOpts?.mediaUrl || "";
++      const result = execSync(
++        `python3 "${scriptPath}" --image-url "${imageArg}" --output json`,
++        { timeout: 180000, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
++      );
++      const parsed = JSON.parse(result);
++      const replyText = parsed.readable || parsed.raw || "处理完成";
++      await sendMessageWeixin({
++        to: ctx.To,
++        text: replyText,
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++      });
++      logger.info("[aliyun] image intercepted, OSS upload + API call done, reply sent");
++      return;
++    } catch (err) {
++      logger.error(`[aliyun] intercept error: ${String(err)}, sending error reply`);
++      try {
++        await sendMessageWeixin({
++          to: ctx.To,
++          text: `⚠️ Aliyun API 超时（120s），请稍后重试`,
++          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        });
++      } catch (e2) { deps.errLog(`aliyun timeout reply error: ${String(e2)}`); }
++      return;
++    }
+   }
+-
+-  const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
+-
++  // === ALIYUN IMAGE INTERCEPT END ===
+ 
+   // === C2E VOICE INTERCEPT START ===
+-  if (_c2eInterceptMode && mediaOpts?.mediaUrl) {
++  if (_c2eInterceptMode && (mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
++    // Try WeChat built-in STT first, fall back to faster-whisper
++    let voiceText: string | null = null;
++    logger.info(`[c2e] voice intercept fired. decryptedPath=${mediaOpts?.decryptedVoicePath} hasVoice=${_hasVoiceItem(full)} voiceText_len=${(voiceText || "").length}`);
++    if (full?.item_list) {
++      for (const item of full.item_list) {
++        if (item?.voice_item?.text) { voiceText = item.voice_item.text; break; }
++      }
++    }
+     const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
+     try {
+-      const { execSync } = await import("node:child_process");
++      const { execFile } = await import("node:child_process");
+       const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
+-      const result = execSync(
+-        `python3 "${scriptPath}" --voice "${mediaOpts.mediaUrl}" --output json`,
+-        { timeout: 120, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+-      );
+-      const parsed = JSON.parse(result);
++      const isWeChatSTT = !!voiceText;
++      const pythonArgs = isWeChatSTT
++        ? ['--chinese-text', voiceText, '--output', 'json']
++        : ['--voice', mediaOpts.decryptedVoicePath, '--output', 'json'];
++      logger.info("[c2e] execFile python: isWeChatSTT=" + isWeChatSTT);
++      const { stdout: pyStdout, stderr: pyStderr } = await new Promise((resolve, reject) => {
++        execFile('/usr/bin/python3', [scriptPath, ...pythonArgs], { timeout: isWeChatSTT ? 120000 : 180000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
++          if (err) {
++            if (err.signal === 'SIGTERM') reject(new Error('Python timed out'));
++            else reject(new Error('Python exited with ' + err.exitCode + ': ' + stderr));
++          } else {
++            resolve({ stdout, stderr });
++          }
++        });
++      });
++      logger.info("[c2e] python stdout: " + pyStdout.substring(0, 100));
++      const parsed = JSON.parse(pyStdout);
+       const replyText = parsed.english || "Translation complete";
+       const audioPath = parsed.audio_path;
+       await sendMessageWeixin({
+         to: ctx.To,
+         text: replyText,
+-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+       });
+       if (audioPath) {
+         try {
+           await sendWeixinMediaFile({
+             to: ctx.To,
+             filePath: audioPath,
+-            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
++            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+           });
+         } catch (e) { deps.errLog(`[c2e] voice send error: ${String(e)}`); }
+       }
+       logger.info("[c2e] voice intercepted and handled");
+       return;
+     } catch (err) {
+-      logger.error(`[c2e] voice intercept error: ${String(err)}, falling through to AI`);
++      const errMsg = String(err);
++      logger.error(`[c2e] voice intercept error: ${errMsg}`);
++      // Reply with timeout/error message instead of falling through to AI
++      let replyText = "⚠️ 翻译处理失败，请稍后重试";
++      if (errMsg.includes("ETIMEDOUT") || errMsg.includes("TimedOut")) {
++        replyText = "⚠️ 翻译处理超时，请稍后重试";
++      } else if (errMsg.includes("ENOENT") || errMsg.includes("not found")) {
++        replyText = "⚠️ 翻译脚本未找到，请检查配置";
++      }
++      try {
++        await sendMessageWeixin({
++          to: ctx.To,
++          text: replyText,
++          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        });
++      } catch (e2) { deps.errLog(`[c2e] timeout reply error: ${String(e2)}`); }
++      return;
+     }
+   }
+   // === C2E VOICE INTERCEPT END ===
+ 
+   // === C2E TEXT INTERCEPT START ===
+   if (_c2eInterceptMode && textBody) {
+-    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
+     try {
+-      const { execSync } = await import("node:child_process");
+-      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
+-      const safeText = textBody.replace(/"/g, '\\"');
+-      const result = execSync(
+-        `python3 "${scriptPath}" --text "${safeText}" --output json`,
+-        { timeout: 60, encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+-      );
+-      const parsed = JSON.parse(result);
+-      const replyText = parsed.english || "Translation complete";
+-      const audioPath = parsed.audio_path;
++      const envCfg = await loadEnvConfig();
++      const apiKey = envCfg.MINIMAX_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
++      const baseUrl = envCfg.MINIMAX_BASE_URL || process.env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic";
++      if (!apiKey) throw new Error("MINIMAX_API_KEY not set in env_config.json");
++      const resp = await fetch(`${baseUrl}/v1/messages`, {
++        method: "POST",
++        headers: {
++          "x-api-key": apiKey,
++          "anthropic-version": "2023-06-01",
++          "content-type": "application/json",
++        },
++        body: JSON.stringify({
++          model: "MiniMax-M2.7",
++          max_tokens: 1024,
++          temperature: 0.3,
++          messages: [{
++            role: "user",
++            content: `Translate the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n${textBody}`,
++          }],
++        }),
++      });
++      if (!resp.ok) throw new Error(`API error ${resp.status}`);
++      const data = await resp.json();
++      const content = data.content ?? [];
++      let english = "Translation complete";
++      for (const block of content) {
++        if (block.type === "text") english = block.text.trim();
++      }
+       await sendMessageWeixin({
+         to: ctx.To,
+-        text: replyText,
+-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
++        text: english,
++        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+       });
+-      if (audioPath) {
+-        try {
+-          await sendWeixinMediaFile({
+-            to: ctx.To,
+-            filePath: audioPath,
+-            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+-          });
+-        } catch (e) { deps.errLog(`[c2e] audio send error: ${String(e)}`); }
++      // TTS via edge-tts
++      try {
++        const edgeTtsPath = envCfg.EDGE_TTS_MODULE_PATH || process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
++        const { EdgeTTS } = require(edgeTtsPath);
++        const tts = new EdgeTTS({ voice: "en-US-AriaNeural", lang: "en-US" });
++        const audioPath = `/tmp/c2e_tts_${Date.now()}.mp3`;
++        await tts.ttsPromise(english, audioPath);
++        await sendWeixinMediaFile({
++          to: ctx.To,
++          filePath: audioPath,
++          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++        });
++        logger.info("[c2e] text + TTS sent");
++      } catch (ttsErr) {
++        logger.error(`[c2e] TTS error: ${String(ttsErr)}, text-only sent`);
+       }
+-      logger.info("[c2e] text intercepted and handled");
+       return;
+     } catch (err) {
+       logger.error(`[c2e] text intercept error: ${String(err)}, falling through to AI`);
+@@ -345,16 +487,16 @@
+   // === C2E TEXT INTERCEPT END ===
+ 
+   // === C2E IMAGE WARNING START ===
+-  if (_c2eInterceptMode && mediaOpts?.mediaUrl && mediaOpts.mediaType === "image") {
++  if (_c2eInterceptMode && (mediaOpts?.decryptedPicPath || mediaOpts?.decryptedVideoPath || mediaOpts?.decryptedFilePath)) {
+     sendMessageWeixin({
+       to: ctx.To,
+       text: "⚠️ 翻译模式仅支持文字和语音，请发送文字或语音消息",
+-      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
++      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+     }).catch(e => deps.errLog(`[c2e] image warning error: ${String(e)}`));
+     return;
+   }
+   // === C2E IMAGE WARNING END ===
+-  // === C2E_INTERCEPT ===
++
+   // --- Framework command authorization ---
+   const rawBody = ctx.Body?.trim() ?? "";
+   ctx.CommandBody = rawBody;
