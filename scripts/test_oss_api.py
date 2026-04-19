@@ -9,7 +9,7 @@ with open(MODE_FILE, 'w') as f:
 from call_api import call_aliyun_api_simple
 from latex_to_unicode import latex_to_plain_text
 
-CONFIG_FILE = os.path.expanduser("~/.openclaw/memory/aliyun_config.json")
+CONFIG_FILE = os.path.expanduser("~/.openclaw/memory/env_config.json")
 with open(CONFIG_FILE) as f:
     config = json.load(f)
 

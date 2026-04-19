@@ -36,7 +36,7 @@ DASHSCOPE_API_KEY=<你的API Key>
 DASHSCOPE_APP_ID=<你的App ID>
 ```
 
-配置写入 `~/.openclaw/memory/aliyun_config.json`，此文件在 `.gitignore` 中，不会上传到 GitHub。
+配置写入 `~/.openclaw/memory/env_config.json`，此文件在 `.gitignore` 中，不会上传到 GitHub。
 
 ## 补丁管理
 
@@ -64,6 +64,6 @@ python3 ~/.openclaw/skills/aliyun-oss/scripts/check_and_patch.py
 
 ## 注意事项
 
-- 所有敏感信息（AK/SK/API Key）存储在 `~/.openclaw/memory/aliyun_config.json`，此文件在 `.gitignore` 中
+- 所有敏感信息（AK/SK/API Key）存储在 `~/.openclaw/memory/env_config.json`，此文件在 `.gitignore` 中
 - LaTeX 转换使用简单正则替换，支持常见数学符号
 - 模式 flag 存储在 `~/.openclaw/memory/weixin_mode.json`

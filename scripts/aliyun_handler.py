@@ -19,7 +19,7 @@ sys.path.insert(0, SCRIPT_DIR)
 
 from latex_to_unicode import latex_to_unicode
 
-CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/aliyun_config.json")
+CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/env_config.json")
 MODE_PATH = os.path.expanduser("~/.openclaw/memory/weixin_mode.json")
 
 
