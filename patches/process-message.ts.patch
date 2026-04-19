@@ -102,7 +102,6 @@
 
 +    _aliyunInterceptMode = mode ?? null;
 
-    _solvingInterceptMode = mode === "解题思路";
 +    return { intercept: false };
 
 +  } catch {
@@ -122,7 +121,6 @@
 +let _c2eInterceptReply: string | null = null;
 
 +let _c2eInterceptMode: boolean = false;
-+let _solvingInterceptMode: boolean = false;
 
 +
 
