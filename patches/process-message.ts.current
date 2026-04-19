@@ -410,6 +410,7 @@ export async function processOneMessage(
               to: ctx.To,
               filePath: audioPath,
               opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+              cdnBaseUrl: deps.cdnBaseUrl,
             });
           } catch (e) { deps.errLog(`[c2e] audio send error: ${String(e)}`); }
         }
