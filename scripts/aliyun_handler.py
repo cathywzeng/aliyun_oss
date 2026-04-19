@@ -99,8 +99,13 @@ def process_image(image_url: str, output: str = 'text') -> str:
             api_image_url = image_url
 
     # Step 3: 调用 API
-    print(f"[DEBUG] Calling API with mode={mode}...", file=sys.stderr)
-    result = call_aliyun_api_simple([api_image_url], mode, config)
+    # For 解题思路 mode, use a special prompt that asks for approach only
+    api_mode = mode
+    if mode == '解题思路':
+        api_mode = '解题思路'  # API receives literal prompt
+        print(f"[DEBUG] Using 解题思路 mode — API will receive special approach-only prompt", file=sys.stderr)
+    print(f"[DEBUG] Calling API with mode={api_mode}...", file=sys.stderr)
+    result = call_aliyun_api_simple([api_image_url], api_mode, config)
     print(f"[DEBUG] API returned {len(result)} chars", file=sys.stderr)
 
     # Step 4: 转换 LaTeX（Unicode 模式，保留公式结构）
@@ -121,7 +126,7 @@ def handle_text_input(text: str) -> str:
     """处理文本输入：设置/清除模式"""
     text = text.strip()
 
-    if text in ('解题模式', '批改模式'):
+    if text in ('解题模式', '解题思路', '批改模式'):
         save_mode(text)
         return f"已进入{text}，请发送图片~"
     elif text in ('解除模式', '清空模式'):

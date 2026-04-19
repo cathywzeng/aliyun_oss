@@ -77,6 +77,7 @@ def clear_c2e_mode():
         pass
 
 
+
 def run_cmd(cmd: list[str], timeout: int = 120) -> str:
     """执行命令并返回 stdout"""
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -145,8 +146,9 @@ def translate_zh_to_en(chinese: str) -> str:
     return clean_ollama(out) or "(translation failed)"
 
 
+
 def tts_edge(text: str, out_mp3: Path) -> Path | None:
-    """使用 Edge TTS 将英文文本转为语音"""
+    """使用 Edge TTS 将文本转为语音（用于翻译模式英文输出）"""
     if not Path(EDGE_TTS_SCRIPT).exists():
         print(f"[c2e] Edge TTS script not found, skipping audio: {EDGE_TTS_SCRIPT}", file=sys.stderr)
         return None

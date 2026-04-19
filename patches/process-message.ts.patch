@@ -60,7 +60,7 @@
 
 +    const mode = modeData?.mode;
 
-+    if (textBody === "解题模式" || textBody === "批改模式") {
++    if (textBody === "解题模式" || textBody === "解题思路" || textBody === "批改模式") {
 
 +      await writeFile(MODE_FILE, JSON.stringify({ mode: textBody }), "utf-8");
 
@@ -561,6 +561,8 @@
 +  // === C2E VOICE INTERCEPT END ===
 
 +
+
+
 
 +  // === C2E TEXT INTERCEPT START ===
 
