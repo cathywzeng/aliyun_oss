@@ -43,12 +43,25 @@ curiousbuddy/
   "dashscope_app_id": "YOUR_APP_ID",
   "MINIMAX_API_KEY": "YOUR_MINIMAX_KEY",
   "MINIMAX_BASE_URL": "https://api.minimaxi.com/anthropic",
-  "EDGE_TTS_MODULE_PATH": "/opt/homebrew/lib/node_modules/node-edge-tts"
+  "EDGE_TTS_MODULE_PATH": "/opt/homebrew/lib/node_modules/node-edge-tts",
+  "EDGE_TTS_SCRIPT": "~/.openclaw/skills/curiousbuddy/c2e/tts-converter.js",
+  "NODE_BIN": "/opt/homebrew/bin/node",
+  "OLLAMA_MODEL": "qwen2.5:7b-instruct",
+  "OLLAMA_BIN": "ollama",
+  "WHISPER_BIN": "",
+  "FASTER_WHISPER_MODEL": "tiny",
+  "TMP_DIR": "/tmp/c2e-wechat"
 }
 ```
 
-> **注意**：`MINIMAX_API_KEY` 用于 C2E 翻译模式，如不使用翻译功能可留空。
-> `EDGE_TTS_MODULE_PATH` 需与本机 Node.js 全局模块路径一致。
+> **注意**：C2E 翻译功能相关配置（如不使用可留空）：
+> - `MINIMAX_API_KEY` / `MINIMAX_BASE_URL` — MiniMax API 翻译
+> - `EDGE_TTS_MODULE_PATH` — Node.js 全局 node-edge-tts 模块路径
+> - `EDGE_TTS_SCRIPT` — Edge TTS 转换脚本路径
+> - `NODE_BIN` — Node.js 可执行文件路径
+> - `OLLAMA_MODEL` / `OLLAMA_BIN` — 本地 Ollama 备选模型
+> - `WHISPER_BIN` / `FASTER_WHISPER_MODEL` — Whisper 语音识别
+> - `TMP_DIR` — 临时文件目录
 
 如使用旧版 `aliyun_config.json`，功能不受影响（会 fallback 读取）。
 
