@@ -67,7 +67,7 @@ Mode state lives at `~/.openclaw/memory/weixin_mode.json`:
 
 ### Configuration (not committed)
 
-Written to `~/.openclaw/memory/aliyun_config.json`:
+Written to `~/.openclaw/memory/env_config.json`:
 - `oss_bucket`, `oss_region`, `oss_access_key`, `oss_secret`
 - `dashscope_api_key`, `dashscope_app_id`
 - `MINIMAX_API_KEY` (env var for c2e_handler)

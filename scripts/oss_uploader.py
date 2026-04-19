@@ -25,7 +25,7 @@ except ImportError:
     sys.exit(1)
 
 
-CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/aliyun_config.json")
+CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/env_config.json")
 
 
 def load_config():

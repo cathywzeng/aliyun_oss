@@ -9,7 +9,7 @@ from oss_uploader import upload_image_to_oss
 from call_api import call_aliyun_api_simple
 from latex_to_unicode import latex_to_plain_text
 
-config_path = os.path.expanduser("~/.openclaw/memory/aliyun_config.json")
+config_path = os.path.expanduser("~/.openclaw/memory/env_config.json")
 mode_path = os.path.expanduser("~/.openclaw/memory/weixin_mode.json")
 
 with open(mode_path, 'w') as f:

@@ -11,7 +11,7 @@ import urllib.request
 import urllib.error
 
 
-CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/aliyun_config.json")
+CONFIG_PATH = os.path.expanduser("~/.openclaw/memory/env_config.json")
 
 
 def load_config():
