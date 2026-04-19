@@ -32,12 +32,12 @@ def load_env_config():
     return {}
 
 def get_env_or_config(key: str, default: str = "") -> str:
-    """Get value from env var first (for testing), then config file."""
+    """Get value from env var first (for testing), then config file. Expands ~ in paths."""
     val = os.environ.get(key, "")
     if val:
-        return val
+        return os.path.expanduser(val)
     cfg = load_env_config()
-    return cfg.get(key, default)
+    return os.path.expanduser(cfg.get(key, default))
 
 # MiniMax Anthropic-compatible API (for translation)
 MINIMAX_API_KEY = get_env_or_config("MINIMAX_API_KEY", "")
