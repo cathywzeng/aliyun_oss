@@ -1,5 +1,5 @@
---- patches/process-message.ts.original	2026-04-19 18:51:21.366269445 +0800
-+++ patches/process-message.ts.current	2026-04-19 20:10:35.246033684 +0800
+--- patches/process-message.ts.original	2026-04-19 04:22:00
++++ patches/process-message.ts.current	2026-04-19 08:34:14
 @@ -1,4 +1,5 @@
  import path from "node:path";
 +import os from "node:os";
@@ -162,7 +162,7 @@
      const downloaded = await downloadMediaFromItem(mediaItem, {
        cdnBaseUrl: deps.cdnBaseUrl,
        saveMedia: deps.channelRuntime.media.saveMediaBuffer,
-@@ -161,6 +284,167 @@
+@@ -161,6 +284,168 @@
  
    const ctx = weixinMessageToMsgContext(full, deps.accountId, mediaOpts);
  
@@ -292,6 +292,7 @@
 +              to: ctx.To,
 +              filePath: audioPath,
 +              opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
++              cdnBaseUrl: deps.cdnBaseUrl,
 +            });
 +          } catch (e) { deps.errLog(`[c2e] audio send error: ${String(e)}`); }
 +        }
