@@ -429,59 +429,44 @@ export async function processOneMessage(
 
   // === C2E TEXT INTERCEPT START ===
   if (_c2eInterceptMode && textBody) {
+    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
     try {
-      const envCfg = await loadEnvConfig();
-      const apiKey = envCfg.MINIMAX_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-      const baseUrl = envCfg.MINIMAX_BASE_URL || process.env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic";
-      if (!apiKey) throw new Error("MINIMAX_API_KEY not set in env_config.json");
-      const resp = await fetch(`${baseUrl}/v1/messages`, {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "MiniMax-M2.7",
-          max_tokens: 1024,
-          temperature: 0.3,
-          messages: [{
-            role: "user",
-            content: `Translate the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n${textBody}`,
-          }],
-        }),
+      const { execFile } = await import("node:child_process");
+      const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
+      const pythonArgs = ['--chinese-text', textBody, '--output', 'json'];
+      const { stdout: pyStdout, stderr: pyStderr } = await new Promise((resolve, reject) => {
+        execFile('/usr/bin/python3', [scriptPath, ...pythonArgs], { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+          if (err) {
+            if (err.signal === 'SIGTERM') reject(new Error('Python timed out'));
+            else reject(new Error('Python exited with ' + err.exitCode + ': ' + stderr));
+          } else {
+            resolve({ stdout, stderr });
+          }
+        });
       });
-      if (!resp.ok) throw new Error(`API error ${resp.status}`);
-      const data = await resp.json();
-      const content = data.content ?? [];
-      let english = "Translation complete";
-      for (const block of content) {
-        if (block.type === "text") english = block.text.trim();
-      }
+      logger.info("[c2e] python stdout: " + pyStdout.substring(0, 100));
+      const parsed = JSON.parse(pyStdout);
+      const english = parsed.english || "Translation complete";
+      const audioPath = parsed.audio_path;
       await sendMessageWeixin({
         to: ctx.To,
         text: english,
         opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
       });
-      // TTS via edge-tts
-      try {
-        const edgeTtsPath = envCfg.EDGE_TTS_MODULE_PATH || process.env.EDGE_TTS_MODULE_PATH || "/opt/homebrew/lib/node_modules/node-edge-tts";
-        const { EdgeTTS } = require(edgeTtsPath);
-        const tts = new EdgeTTS({ voice: "en-US-AriaNeural", lang: "en-US" });
-        const audioPath = `/tmp/c2e_tts_${Date.now()}.mp3`;
-        await tts.ttsPromise(english, audioPath);
-        await sendWeixinMediaFile({
-          to: ctx.To,
-          filePath: audioPath,
-          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-        });
-        logger.info("[c2e] text + TTS sent");
-      } catch (ttsErr) {
-        logger.error(`[c2e] TTS error: ${String(ttsErr)}, text-only sent`);
+      if (audioPath) {
+        try {
+          await sendWeixinMediaFile({
+            to: ctx.To,
+            filePath: audioPath,
+            opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
+          });
+        } catch (e) { deps.errLog(`[c2e] voice send error: ${String(e)}`); }
       }
+      logger.info("[c2e] text intercepted and handled");
       return;
     } catch (err) {
-      logger.error(`[c2e] text intercept error: ${String(err)}, falling through to AI`);
+      const errMsg = String(err);
+      logger.error(`[c2e] text intercept error: ${errMsg}, falling through to AI`);
     }
   }
   // === C2E TEXT INTERCEPT END ===
