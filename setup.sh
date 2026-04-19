@@ -49,15 +49,12 @@ else
     echo "✅ env_config.json exists"
 fi
 
-# 3. Check Python dependencies
-echo "=== Checking Python dependencies ==="
-MISSING_PYTHON=""
-python3 -c "import requests" 2>/dev/null || MISSING_PYTHON="$MISSING_PYTHON requests"
-if [ -n "$MISSING_PYTHON" ]; then
-    echo "⚠️  Missing: $MISSING_PYTHON"
-    echo "   Install: pip install$MISSING_PYTHON"
+# 3. Install Python dependencies
+echo "=== Installing Python dependencies ==="
+if [ -f ~/.openclaw/skills/curiousbuddy/requirements.txt ]; then
+    python3 -m pip install --quiet -r ~/.openclaw/skills/curiousbuddy/requirements.txt 2>/dev/null && echo "✅ Python dependencies installed" || echo "⚠️  pip install failed"
 else
-    echo "✅ Python dependencies OK"
+    echo "⚠️  requirements.txt not found"
 fi
 
 # 4. Check Node.js and edge-tts
