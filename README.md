@@ -22,7 +22,7 @@ curiousbuddy/
 │   ├── oss_uploader.py    # OSS 上传工具
 │   ├── call_api.py        # 通义千问 API 调用
 │   ├── latex_to_unicode.py # LaTeX 转 Unicode
-│   └── check_and_patch.py # 插件补丁管理
+│   └── test_c2e_handler.py # C2E 测试脚本
 ├── patches/              # 补丁文件（按版本）
 └── memory/               # 配置和模式（不提交）
 ```
@@ -96,13 +96,25 @@ python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 
 ## 补丁管理
 
-每次 `openclaw-weixin` 升级后，运行：
+openclaw-weixin 升级后，手动应用补丁：
 
 ```bash
-python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
+# 1. 备份原文件
+cp ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak.bak
+
+# 2. 应用补丁
+patch -s ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak < ~/.openclaw/skills/curiousbuddy/patches/process-message.ts.patch
+
+# 3. 验证
+diff ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts.bak ~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts && echo "PASS"
 ```
 
-补丁历史记录在 `~/.openclaw/skills/curiousbuddy/patch_history.json`。
+或使用 rsync 从本地同步已打补丁的文件：
+```bash
+rsync -av curiousbuddy/patches/process-message.ts.current cathy@host:~/.openclaw/extensions/openclaw-weixin/src/messaging/process-message.ts
+```
+
+补丁文件位于 `~/.openclaw/skills/curiousbuddy/patches/process-message.ts.patch`。
 
 ## 安全说明
 
