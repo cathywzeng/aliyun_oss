@@ -99,8 +99,13 @@ def process_image(image_url: str, output: str = 'text') -> str:
             api_image_url = image_url
 
     # Step 3: 调用 API
-    print(f"[DEBUG] Calling API with mode={mode}...", file=sys.stderr)
-    result = call_aliyun_api_simple([api_image_url], mode, config)
+    # For 解题思路 mode, use a special prompt that asks for approach only
+    api_mode = mode
+    if mode == '解题思路':
+        api_mode = '解题思路'  # API receives literal prompt
+        print(f"[DEBUG] Using 解题思路 mode — API will receive special approach-only prompt", file=sys.stderr)
+    print(f"[DEBUG] Calling API with mode={api_mode}...", file=sys.stderr)
+    result = call_aliyun_api_simple([api_image_url], api_mode, config)
     print(f"[DEBUG] API returned {len(result)} chars", file=sys.stderr)
 
     # Step 4: 转换 LaTeX（Unicode 模式，保留公式结构）
@@ -121,7 +126,7 @@ def handle_text_input(text: str) -> str:
     """处理文本输入：设置/清除模式"""
     text = text.strip()
 
-    if text in ('解题模式', '批改模式'):
+    if text in ('解题模式', '解题思路', '批改模式'):
         save_mode(text)
         return f"已进入{text}，请发送图片~"
     elif text in ('解除模式', '清空模式'):
@@ -132,20 +137,41 @@ def handle_text_input(text: str) -> str:
         return None  # 不处理
 
 
+def process_text(text: str, output: str = 'text') -> str:
+    """
+    处理纯文本输入（解题思路模式下的文字题目）
+    直接调用 API 返回解题思路，不上传图片
+    """
+    from call_api import call_aliyun_api_simple
+
+    config = load_config()
+    mode = load_mode() or "解题思路"
+
+    if mode == "解题思路":
+        # 调用 API，传入空图片列表（纯文本模式）
+        print(f"[DEBUG] Solving mode text input, calling API with mode={mode}", file=sys.stderr)
+        result = call_aliyun_api_simple([], mode, config)
+        readable = latex_to_unicode(result)
+        if output == 'json':
+            return json.dumps({'mode': mode, 'raw': result, 'readable': readable}, ensure_ascii=False, indent=2)
+        return readable
+    else:
+        # 其他模式（解题/批改）不支持纯文本，只支持图片
+        raise ValueError(f"模式「{mode}」仅支持图片输入，请发送题目图片")
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='阿里云 AI 解题处理器')
     parser.add_argument('--image-url', help='图片 URL 或本地路径')
-    parser.add_argument('--text', help='文本输入（设置模式）')
+    parser.add_argument('--text', help='纯文本题目输入（解题思路模式）')
     parser.add_argument('--output', default='text', choices=['text', 'json'], help='输出格式')
     args = parser.parse_args()
 
     try:
         if args.text:
-            result = handle_text_input(args.text)
-            if result:
-                print(result)
-            else:
-                print("未识别的命令")
+            # 纯文本输入 → 调用 process_text
+            result = process_text(args.text, args.output)
+            print(result)
         elif args.image_url:
             result = process_image(args.image_url, args.output)
             print(result)
