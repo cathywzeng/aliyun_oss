@@ -51,7 +51,11 @@ fi
 
 # 3. Install Python dependencies
 echo "=== Installing Python dependencies ==="
-python3 -m pip install --quiet oss2 requests openai 2>/dev/null && echo "✅ Python dependencies installed" || echo "⚠️  pip install failed (oss2/requests/openai)"
+if [ -f ~/.openclaw/skills/curiousbuddy/requirements.txt ]; then
+    python3 -m pip install --quiet -r ~/.openclaw/skills/curiousbuddy/requirements.txt 2>/dev/null && echo "✅ Python dependencies installed" || echo "⚠️  pip install failed"
+else
+    echo "⚠️  requirements.txt not found"
+fi
 
 # 4. Check Node.js and edge-tts
 echo "=== Checking Node.js ==="
