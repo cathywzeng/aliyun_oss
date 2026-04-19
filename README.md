@@ -60,7 +60,6 @@ python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 
 - 发送 `解题思路` → 进入解题思路模式
 - 发送题目图片 → AI 返回考点分析和方法点拨（不给最终答案）
-- 发送题目文字 → AI 同样返回考点分析和方法点拨
 - 与解题模式、批改模式共用阿里云拦截通道
 - 发送 `解除模式` → 清除模式
 

@@ -564,44 +564,6 @@
 
 +
 
-  // === SOLVING TEXT INTERCEPT START ===
-  // 解题思路模式：接收题目文本，调用 aliyun_handler.py --text
-  if (_solvingInterceptMode && textBody && !_hasDownloadedMedia) {
-    const SKILL_DIR = os.homedir() + "/.openclaw/skills/curiousbuddy";
-    try {
-      const { execFile } = await import("node:child_process");
-      const scriptPath = SKILL_DIR + "/scripts/aliyun_handler.py";
-      logger.info("[solving] text intercept: " + textBody.substring(0, 50));
-      const { stdout: pyStdout, stderr: pyStderr } = await new Promise((resolve, reject) => {
-        execFile("/usr/bin/python3", [scriptPath, "--text", textBody, "--output", "json"],
-          { timeout: 60000, maxBuffer: 10 * 1024 * 1024 },
-          (err, stdout, stderr) => {
-            if (err) reject(new Error("Python error: " + err.exitCode + " " + stderr));
-            else resolve({ stdout, stderr });
-          });
-      });
-      const parsed = JSON.parse(pyStdout);
-      const replyText = parsed.readable || parsed.raw || "解题思路生成完成";
-      await sendMessageWeixin({
-        to: ctx.To,
-        text: replyText,
-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-      });
-      logger.info("[solving] text intercepted, reply sent");
-      return;
-    } catch (err) {
-      logger.error(`[solving] text intercept error: ${String(err)}`);
-      try {
-        await sendMessageWeixin({
-          to: ctx.To,
-          text: "⚠️ 解题思路处理失败，请稍后重试",
-          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-        });
-      } catch (e2) { deps.errLog(`[solving] error reply error: ${String(e2)}`); }
-      return;
-    }
-  }
-  // === SOLVING TEXT INTERCEPT END ===
 
 
 +  // === C2E TEXT INTERCEPT START ===
