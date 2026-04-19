@@ -22,7 +22,7 @@ curiousbuddy/
 │   ├── oss_uploader.py    # OSS 上传工具
 │   ├── call_api.py        # 通义千问 API 调用
 │   ├── latex_to_unicode.py # LaTeX 转 Unicode
-│   └── check_and_patch.py # 插件补丁管理
+│   └── test_c2e_handler.py # C2E 测试脚本
 ├── patches/              # 补丁文件（按版本）
 └── memory/               # 配置和模式（不提交）
 ```
@@ -70,6 +70,8 @@ curiousbuddy/
 python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
 
+> `check_and_patch.py` 会自动备份原文件为 `.original`，应用 `process-message.ts.patch`，并验证与 `process-message.ts.current` 是否一致。
+
 ## 使用方法
 
 ### 解题/批改模式
@@ -96,13 +98,19 @@ python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 
 ## 补丁管理
 
-每次 `openclaw-weixin` 升级后，运行：
+openclaw-weixin 升级后，运行：
 
 ```bash
 python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 ```
 
-补丁历史记录在 `~/.openclaw/skills/curiousbuddy/patch_history.json`。
+脚本会自动：
+1. 备份原文件为 `.original`（仅首次）
+2. 从 `.original` 恢复到干净状态
+3. 应用 `process-message.ts.patch`
+4. 验证与 `process-message.ts.current` 一致
+
+补丁文件位于 `~/.openclaw/skills/curiousbuddy/patches/`。
 
 ## 安全说明
 

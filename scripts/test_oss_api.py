@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import sys; sys.path.insert(0, '/home/admin/.openclaw/skills/aliyun-oss/scripts')
+import sys, os
+sys.path.insert(0, os.path.expanduser("~/.openclaw/skills/aliyun-oss/scripts"))
 
 import json, os
 MODE_FILE = os.path.expanduser("~/.openclaw/memory/weixin_mode.json")
