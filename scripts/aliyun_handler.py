@@ -163,7 +163,6 @@ if __name__ == '__main__':
 
 # === DEBUG: test network reachability ===
 def test_api_reachability():
-    import urllib.request
     config = load_config()
     test_url = f"https://dashscope.aliyuncs.com/api/v1/apps/{config['dashscope_app_id']}/completion"
     print(f"[DEBUG] Testing DashScope reachability...", file=sys.stderr)
