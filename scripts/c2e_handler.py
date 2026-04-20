@@ -52,7 +52,7 @@ CONFIG_PATH = "~/.openclaw/memory/env_config.json"
 # ANTHROPIC_AUTH_TOKEN is set by the OpenClaw gateway; fall back to
 # MINIMAX_API_KEY in env_config.json for direct-script usage.
 MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN") or get_env_or_config("MINIMAX_API_KEY", "")
-MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+MINIMAX_BASE_URL = get_env_or_config("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
 
 OLLAMA_MODEL = get_env_or_config("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 OLLAMA_BIN = get_env_or_config("OLLAMA_BIN", "ollama")
