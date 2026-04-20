@@ -152,7 +152,7 @@ def translate_zh_to_en(chinese: str) -> str:
                         }
                     ],
                 },
-                timeout=10,
+                timeout=30,
             )
             resp.raise_for_status()
             data = resp.json()
