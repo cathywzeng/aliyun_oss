@@ -7,24 +7,22 @@ C2E (Chinese→English) 翻译模式处理器
 
 import json
 import os
-import sys
-import argparse
 import re
 import subprocess
+import sys
+import urllib.request
+from argparse import ArgumentParser
 from pathlib import Path
 from typing import Optional, Union
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, SCRIPT_DIR)
+import requests
 
-# Mode file path (shared with aliyun-oss)
-MODE_PATH = os.environ.get("MODE_PATH", "~/.openclaw/memory/weixin_mode.json")
-
-# Config file path
+# Config file path (env_config.json — used because Node.js execFile does not
+# pass parent-process env vars to the child; credentials must be read from file)
 CONFIG_PATH = "~/.openclaw/memory/env_config.json"
 
 def load_env_config():
-    """Load config from env_config.json, falling back to env vars for testing."""
+    """Load config from env_config.json."""
     path = os.path.expanduser(CONFIG_PATH)
     if os.path.exists(path):
         with open(path) as f:
@@ -32,22 +30,39 @@ def load_env_config():
     return {}
 
 def get_env_or_config(key: str, default: str = "") -> str:
-    """Get value from env var first (for testing), then config file. Expands ~ in paths."""
+    """Get value from env var first, then env_config.json. Expands ~ in paths."""
     val = os.environ.get(key, "")
     if val:
         return os.path.expanduser(val)
     cfg = load_env_config()
     return os.path.expanduser(cfg.get(key, default))
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+
+# Mode file path (shared with aliyun-oss)
+MODE_PATH = os.environ.get("MODE_PATH", "~/.openclaw/memory/weixin_mode.json")
+
+# Config file path (for backward compatibility with existing deployments)
+CONFIG_PATH = "~/.openclaw/memory/env_config.json"
+
 # MiniMax Anthropic-compatible API (for translation)
-MINIMAX_API_KEY = get_env_or_config("MINIMAX_API_KEY", "")
-MINIMAX_BASE_URL = get_env_or_config("MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic")
+# Credentials: set ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL env vars.
+# For backward compatibility, falls back to MINIMAX_API_KEY / MINIMAX_BASE_URL.
+# ANTHROPIC_AUTH_TOKEN is set by the OpenClaw gateway; fall back to
+# MINIMAX_API_KEY in env_config.json for direct-script usage.
+MINIMAX_API_KEY = os.environ.get("ANTHROPIC_AUTH_TOKEN") or get_env_or_config("MINIMAX_API_KEY", "")
+MINIMAX_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+
 OLLAMA_MODEL = get_env_or_config("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 OLLAMA_BIN = get_env_or_config("OLLAMA_BIN", "ollama")
 WHISPER_BIN = get_env_or_config("WHISPER_BIN", "")
 FASTER_WHISPER_MODEL = get_env_or_config("FASTER_WHISPER_MODEL", "tiny")
 NODE_BIN = get_env_or_config("NODE_BIN", "node")
-EDGE_TTS_SCRIPT = get_env_or_config("EDGE_TTS_SCRIPT", str(Path(__file__).parent.parent / "c2e" / "tts-converter.js"))
+EDGE_TTS_SCRIPT = get_env_or_config(
+    "EDGE_TTS_SCRIPT",
+    str(Path(__file__).parent.parent / "c2e" / "tts-converter.js")
+)
 EDGE_TTS_MODULE_PATH = get_env_or_config("EDGE_TTS_MODULE_PATH", "")
 TMP_DIR = Path(get_env_or_config("TMP_DIR", "/tmp/c2e-wechat"))
 TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -111,11 +126,9 @@ def clean_ollama(text: str) -> str:
 
 
 def translate_zh_to_en(chinese: str) -> str:
-    """使用 MiniMax API 或 Ollama API 将中文翻译为英文"""
-    # Try MiniMax first if configured
+    """使用 MiniMax API（若已配置）或 Ollama（默认）将中文翻译为英文。"""
     if MINIMAX_API_KEY and MINIMAX_BASE_URL:
         try:
-            import requests
             resp = requests.post(
                 f"{MINIMAX_BASE_URL}/v1/messages",
                 headers={
@@ -139,26 +152,28 @@ def translate_zh_to_en(chinese: str) -> str:
                         }
                     ],
                 },
-                timeout=30,
+                timeout=10,
             )
             resp.raise_for_status()
             data = resp.json()
-            # Anthropic messages API returns content as a list
             content = data.get("content", [])
             if isinstance(content, list):
                 for block in content:
                     if block.get("type") == "text":
                         return block["text"].strip()
             return str(content)
+        except requests.Timeout:
+            raise RuntimeError("[c2e] MiniMax API timed out after 10s")
         except Exception as e:
-            print(f"[c2e] MiniMax API error: {e}", file=sys.stderr)
+            raise RuntimeError(f"[c2e] MiniMax API error: {e}")
 
-    # Fallback to Ollama API if configured
     if not OLLAMA_MODEL:
-        return "[翻译错误] 未配置 MINIMAX_API_KEY 或 OLLAMA_MODEL，无法翻译"
+        raise RuntimeError(
+            "[c2e] No translation backend configured. "
+            "Set ANTHROPIC_AUTH_TOKEN (or MINIMAX_API_KEY) or OLLAMA_MODEL env var."
+        )
 
     try:
-        import urllib.request
         req = urllib.request.Request(
             "http://localhost:11434/api/generate",
             data=json.dumps({
@@ -173,9 +188,7 @@ def translate_zh_to_en(chinese: str) -> str:
             result = json.loads(resp.read().decode("utf-8"))
             return result.get("response", "").strip()
     except Exception as e:
-        print(f"[c2e] Ollama API error: {e}", file=sys.stderr)
-
-    return "[翻译错误] MiniMax 和 Ollama 均不可用，请检查配置"
+        raise RuntimeError(f"[c2e] Ollama API error: {e}")
 
 
 
@@ -205,8 +218,6 @@ def transcribe_audio(audio_path: Path) -> str:
     - 否则使用 faster-whisper（tiny + int8 CPU，已本地缓存）
     """
     if WHISPER_BIN:
-        # Use whisper CLI
-        import subprocess
         result = subprocess.run(
             [WHISPER_BIN, str(audio_path),
              "--model", "tiny", "--task", "transcribe",
@@ -220,11 +231,10 @@ def transcribe_audio(audio_path: Path) -> str:
         return txt_path.read_text(encoding="utf-8").strip()
     else:
         # Use faster-whisper (CTranslate2 model, ~8x faster than PyTorch)
-        import whisper
         from faster_whisper import WhisperModel
-        model = WhisperModel(FASTER_WHISPER_MODEL, device='cpu', compute_type='int8')
-        segments, _ = model.transcribe(str(audio_path), language='zh', beam_size=1)
-        return ''.join(s.text for s in segments).strip()
+        model = WhisperModel(FASTER_WHISPER_MODEL, device="cpu", compute_type="int8")
+        segments, _ = model.transcribe(str(audio_path), language="zh", beam_size=1)
+        return "".join(s.text for s in segments).strip()
 
 
 def translate_and_speak(text: str) -> dict:
