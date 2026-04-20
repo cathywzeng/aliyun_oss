@@ -17,10 +17,6 @@ from typing import Optional, Union
 
 import requests
 
-# Config file path (env_config.json — used because Node.js execFile does not
-# pass parent-process env vars to the child; credentials must be read from file)
-CONFIG_PATH = "~/.openclaw/memory/env_config.json"
-
 def load_env_config():
     """Load config from env_config.json."""
     path = os.path.expanduser(CONFIG_PATH)
