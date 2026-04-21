@@ -1,6 +1,8 @@
 # Sensitive configuration files - NEVER commit these
 memory/
-*.json
+env_config.json
+
+.claude/
 
 # OS files
 .DS_Store

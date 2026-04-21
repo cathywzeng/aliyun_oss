@@ -1,0 +1,8 @@
+{
+  "name": "trsl-tts",
+  "version": "1.0.0",
+  "dependencies": {
+    "node-edge-tts": "*",
+    "commander": "*"
+  }
+}

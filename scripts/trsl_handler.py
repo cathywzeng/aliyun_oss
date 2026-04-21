@@ -148,7 +148,7 @@ def translate_zh_to_en(chinese: str) -> str:
                         {
                             "role": "user",
                             "content": (
-                                "trsl the following Chinese to English. "
+                                "translate the following Chinese to English. "
                                 "Keep names, numbers, dates, and IDs exact. "
                                 "Do not add facts. Output only English text in natural style.\n\n"
                                 f"Chinese:\n{chinese}"
@@ -182,7 +182,7 @@ def translate_zh_to_en(chinese: str) -> str:
             "http://localhost:11434/api/generate",
             data=json.dumps({
                 "model": OLLAMA_MODEL,
-                "prompt": f"trsl the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n{chinese}",
+                "prompt": f"translate the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n{chinese}",
                 "stream": False,
             }).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -214,7 +214,7 @@ def translate_en_to_zh(english: str) -> str:
                         {
                             "role": "user",
                             "content": (
-                                "trsl the following English to Chinese. "
+                                "translate the following English to Chinese. "
                                 "Keep names, numbers, dates, and IDs exact. "
                                 "Do not add facts. Output only Chinese text in natural style.\n\n"
                                 f"English:\n{english}"
