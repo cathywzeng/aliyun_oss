@@ -57,27 +57,27 @@ FASTER_WHISPER_MODEL = get_env_or_config("FASTER_WHISPER_MODEL", "tiny")
 NODE_BIN = get_env_or_config("NODE_BIN", "node")
 EDGE_TTS_SCRIPT = get_env_or_config(
     "EDGE_TTS_SCRIPT",
-    str(Path(__file__).parent.parent / "c2e" / "tts-converter.js")
+    str(Path(__file__).parent.parent / "trsl" / "tts-converter.js")
 )
 EDGE_TTS_MODULE_PATH = get_env_or_config("EDGE_TTS_MODULE_PATH", "")
-TMP_DIR = Path(get_env_or_config("TMP_DIR", "/tmp/c2e-wechat"))
+TMP_DIR = Path(get_env_or_config("TMP_DIR", "/tmp/trsl-wechat"))
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_c2e_mode():
-    """读取 c2e 模式状态（与 aliyun_oss 共享 weixin_mode.json）"""
+def load_trsl_mode():
+    """读取 trsl 模式状态（与 aliyun_oss 共享 weixin_mode.json）"""
     path = os.path.expanduser(MODE_PATH)
     if not os.path.exists(path):
         return None
     try:
         data = json.load(open(path))
-        return data.get("c2e", None)
+        return data.get("trsl", None)
     except (json.JSONDecodeError, IOError):
         return None
 
 
-def save_c2e_mode(mode):
-    """保存 c2e 模式（保留 aliyun 模式）"""
+def save_trsl_mode(mode):
+    """保存 trsl 模式（保留 aliyun 模式）"""
     path = os.path.expanduser(MODE_PATH)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     existing = {}
@@ -86,19 +86,19 @@ def save_c2e_mode(mode):
             existing = json.load(open(path))
         except (json.JSONDecodeError, IOError):
             pass
-    existing["c2e"] = mode
+    existing["trsl"] = mode
     with open(path, "w") as f:
         json.dump(existing, f, ensure_ascii=False)
 
 
-def clear_c2e_mode():
-    """清除 c2e 模式（保留 aliyun 模式）"""
+def clear_trsl_mode():
+    """清除 trsl 模式（保留 aliyun 模式）"""
     path = os.path.expanduser(MODE_PATH)
     if not os.path.exists(path):
         return
     try:
         data = json.load(open(path))
-        data.pop("c2e", None)
+        data.pop("trsl", None)
         with open(path, "w") as f:
             json.dump(data, f, ensure_ascii=False)
     except (json.JSONDecodeError, IOError):
@@ -121,6 +121,14 @@ def clean_ollama(text: str) -> str:
     return text.strip()
 
 
+def detect_language(text: str) -> str:
+    """Return 'zh' if text contains CJK characters, else 'en'."""
+    for ch in text:
+        if '一' <= ch <= '鿿' or '㐀' <= ch <= '䶿':
+            return 'zh'
+    return 'en'
+
+
 def translate_zh_to_en(chinese: str) -> str:
     """使用 MiniMax API（若已配置）或 Ollama（默认）将中文翻译为英文。"""
     if MINIMAX_API_KEY and MINIMAX_BASE_URL:
@@ -140,7 +148,7 @@ def translate_zh_to_en(chinese: str) -> str:
                         {
                             "role": "user",
                             "content": (
-                                "Translate the following Chinese to English. "
+                                "trsl the following Chinese to English. "
                                 "Keep names, numbers, dates, and IDs exact. "
                                 "Do not add facts. Output only English text in natural style.\n\n"
                                 f"Chinese:\n{chinese}"
@@ -159,13 +167,13 @@ def translate_zh_to_en(chinese: str) -> str:
                         return block["text"].strip()
             return str(content)
         except requests.Timeout:
-            raise RuntimeError("[c2e] MiniMax API timed out after 10s")
+            raise RuntimeError("[trsl] MiniMax API timed out after 10s")
         except Exception as e:
-            raise RuntimeError(f"[c2e] MiniMax API error: {e}")
+            raise RuntimeError(f"[trsl] MiniMax API error: {e}")
 
     if not OLLAMA_MODEL:
         raise RuntimeError(
-            "[c2e] No translation backend configured. "
+            "[trsl] No translation backend configured. "
             "Set ANTHROPIC_AUTH_TOKEN (or MINIMAX_API_KEY) or OLLAMA_MODEL env var."
         )
 
@@ -174,7 +182,7 @@ def translate_zh_to_en(chinese: str) -> str:
             "http://localhost:11434/api/generate",
             data=json.dumps({
                 "model": OLLAMA_MODEL,
-                "prompt": f"Translate the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n{chinese}",
+                "prompt": f"trsl the following Chinese to English. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only English text in natural style.\n\nChinese:\n{chinese}",
                 "stream": False,
             }).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -184,14 +192,80 @@ def translate_zh_to_en(chinese: str) -> str:
             result = json.loads(resp.read().decode("utf-8"))
             return result.get("response", "").strip()
     except Exception as e:
-        raise RuntimeError(f"[c2e] Ollama API error: {e}")
+        raise RuntimeError(f"[trsl] Ollama API error: {e}")
+
+
+def translate_en_to_zh(english: str) -> str:
+    """使用 MiniMax API（若已配置）或 Ollama（默认）将英文翻译为中文。"""
+    if MINIMAX_API_KEY and MINIMAX_BASE_URL:
+        try:
+            resp = requests.post(
+                f"{MINIMAX_BASE_URL}/v1/messages",
+                headers={
+                    "x-api-key": MINIMAX_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "MiniMax-M2.7",
+                    "max_tokens": 1024,
+                    "temperature": 0.3,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "trsl the following English to Chinese. "
+                                "Keep names, numbers, dates, and IDs exact. "
+                                "Do not add facts. Output only Chinese text in natural style.\n\n"
+                                f"English:\n{english}"
+                            ),
+                        }
+                    ],
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if block.get("type") == "text":
+                        return block["text"].strip()
+            return str(content)
+        except requests.Timeout:
+            raise RuntimeError("[trsl] MiniMax API timed out after 10s")
+        except Exception as e:
+            raise RuntimeError(f"[trsl] MiniMax API error: {e}")
+
+    if not OLLAMA_MODEL:
+        raise RuntimeError(
+            "[trsl] No translation backend configured. "
+            "Set ANTHROPIC_AUTH_TOKEN (or MINIMAX_API_KEY) or OLLAMA_MODEL env var."
+        )
+
+    try:
+        req = urllib.request.Request(
+            "http://localhost:11434/api/generate",
+            data=json.dumps({
+                "model": OLLAMA_MODEL,
+                "prompt": f"trsl the following English to Chinese. Keep names, numbers, dates, and IDs exact. Do not add facts. Output only Chinese text in natural style.\n\nEnglish:\n{english}",
+                "stream": False,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            return result.get("response", "").strip()
+    except Exception as e:
+        raise RuntimeError(f"[trsl] Ollama API error: {e}")
 
 
 
-def tts_edge(text: str, out_mp3: Path) -> Optional[Path]:
-    """使用 Edge TTS 将文本转为语音（用于翻译模式英文输出）"""
+def tts_edge(text: str, out_mp3: Path, voice: str = "en-US-AriaNeural") -> Optional[Path]:
+    """使用 Edge TTS 将文本转为语音"""
     if not Path(EDGE_TTS_SCRIPT).exists():
-        print(f"[c2e] Edge TTS script not found, skipping audio: {EDGE_TTS_SCRIPT}", file=sys.stderr)
+        print(f"[trsl] Edge TTS script not found, skipping audio: {EDGE_TTS_SCRIPT}", file=sys.stderr)
         return None
     try:
         node_env = None
@@ -199,12 +273,12 @@ def tts_edge(text: str, out_mp3: Path) -> Optional[Path]:
             node_module_dir = str(Path(EDGE_TTS_MODULE_PATH).parent)
             node_env = {**os.environ, "NODE_PATH": node_module_dir}
         run_cmd(
-            [NODE_BIN, EDGE_TTS_SCRIPT, text, "--voice", "en-US-AriaNeural", "--output", str(out_mp3)],
+            [NODE_BIN, EDGE_TTS_SCRIPT, text, "--voice", voice, "--output", str(out_mp3)],
             env=node_env,
         )
         return out_mp3
     except Exception as e:
-        print(f"[c2e] TTS error: {e}, skipping audio", file=sys.stderr)
+        print(f"[trsl] TTS error: {e}, skipping audio", file=sys.stderr)
         return None
 
 
@@ -235,56 +309,72 @@ def transcribe_audio(audio_path: Path) -> str:
 
 def translate_and_speak(text: str) -> dict:
     """
-    翻译文本并生成语音
-    返回: {"english": str, "audio_path": str}
+    翻译文本并生成语音（双向：自动检测输入语言）
+    返回: {"source": str, "translated": str, "audio_path": str}
     """
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-    english = translate_zh_to_en(text)
-    out_mp3 = TMP_DIR / f"c2e_{os.getpid()}_{len(text)}.mp3"
-    audio_path = tts_edge(english, out_mp3)
+    lang = detect_language(text)
+    if lang == 'zh':
+        translated = translate_zh_to_en(text)
+        voice = "en-US-AriaNeural"
+    else:
+        translated = translate_en_to_zh(text)
+        voice = "zh-CN-XiaoxiaoNeural"
+
+    out_mp3 = TMP_DIR / f"trsl_{os.getpid()}_{len(text)}.mp3"
+    audio_path = tts_edge(translated, out_mp3, voice)
 
     return {
-        "english": english,
+        "source": text,
+        "translated": translated,
         "audio_path": str(audio_path) if audio_path else "",
     }
 
 
 def process_voice(voice_path: str) -> dict:
     """
-    处理语音消息：Whisper 转录 → 翻译 → TTS
-    返回: {"chinese": str, "english": str, "audio_path": str}
+    处理语音消息：Whisper 转录 → 翻译 → TTS（双向）
+    返回: {"source": str, "translated": str, "audio_path": str}
     """
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     audio_path = Path(voice_path)
 
-    chinese = transcribe_audio(audio_path)
-    english = translate_zh_to_en(chinese)
-    out_mp3 = TMP_DIR / f"c2e_voice_{os.getpid()}_{audio_path.stem}.mp3"
-    audio_path_result = tts_edge(english, out_mp3)
+    source_text = transcribe_audio(audio_path)
+    lang = detect_language(source_text)
+
+    if lang == 'zh':
+        translated = translate_zh_to_en(source_text)
+        voice = "en-US-AriaNeural"
+    else:
+        translated = translate_en_to_zh(source_text)
+        voice = "zh-CN-XiaoxiaoNeural"
+
+    out_mp3 = TMP_DIR / f"trsl_voice_{os.getpid()}_{audio_path.stem}.mp3"
+    audio_path_result = tts_edge(translated, out_mp3, voice)
 
     return {
-        "chinese": chinese,
-        "english": english,
+        "source": source_text,
+        "translated": translated,
         "audio_path": str(audio_path_result) if audio_path_result else "",
     }
 
 
-def handle_c2e_mode_command(text: str) -> Optional[str]:
+def handle_trsl_mode_command(text: str) -> Optional[str]:
     """
     处理 C2E 模式命令
-    "翻译模式" / "c2e" → 进入翻译模式
-    "解除模式" / "c2e-exit" → 退出翻译模式
+    "翻译模式" / "trsl" → 进入翻译模式
+    "解除模式" / "trsl-exit" → 退出翻译模式
     返回: 回复文本或 None（不处理）
     """
     text = text.strip()
 
-    if text in ("翻译模式", "c2e"):
-        save_c2e_mode("c2e")
-        return "已进入翻译模式，请发送中文文本或语音~"
+    if text in ("翻译模式", "trsl"):
+        save_trsl_mode("trsl")
+        return "已进入翻译模式，请发送中文或英文文本或语音~"
 
-    if text in ("解除模式", "c2e-exit"):
-        clear_c2e_mode()
+    if text in ("解除模式", "trsl-exit"):
+        clear_trsl_mode()
         return "已解除翻译模式，模式已清空"
 
     return None
@@ -292,9 +382,9 @@ def handle_c2e_mode_command(text: str) -> Optional[str]:
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="C2E 翻译模式处理器")
-    parser.add_argument("--text", help="中文文本输入（手动输入）")
+    parser.add_argument("--text", help="文本输入")
     parser.add_argument("--voice", help="语音文件路径（自动转写）")
-    parser.add_argument("--chinese-text", help="微信已转写的中文文本（跳过 Whisper，直接翻译）")
+    parser.add_argument("--chinese-text", help="已转写文本（跳过 Whisper，直接翻译，双向自动检测语言）")
     parser.add_argument("--output", default="text", choices=["text", "json"], help="输出格式")
     args = parser.parse_args()
 
@@ -304,22 +394,19 @@ if __name__ == "__main__":
             if args.output == "json":
                 print(json.dumps(result, ensure_ascii=False, indent=2))
             else:
-                print(result["english"])
+                print(result["translated"])
         elif args.voice:
             result = process_voice(args.voice)
             if args.output == "json":
                 print(json.dumps(result, ensure_ascii=False, indent=2))
             else:
-                print(result["english"])
+                print(result["translated"])
         elif args.chinese_text:
-            english = translate_zh_to_en(args.chinese_text)
-            out_mp3 = TMP_DIR / f"c2e_text_{os.getpid()}.mp3"
-            audio_path_result = tts_edge(english, out_mp3)
-            result = {"chinese": args.chinese_text, "english": english, "audio_path": str(audio_path_result) if audio_path_result else ""}
+            result = translate_and_speak(args.chinese_text)
             if args.output == "json":
                 print(json.dumps(result, ensure_ascii=False, indent=2))
             else:
-                print(result["english"])
+                print(result["translated"])
         else:
             parser.print_help()
     except Exception as e:

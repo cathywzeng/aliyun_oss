@@ -15,17 +15,17 @@ from unittest.mock import patch, MagicMock, mock_open
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-from c2e_handler import (
-    load_c2e_mode,
-    save_c2e_mode,
-    clear_c2e_mode,
+from scripts.trsl_handler import (
+    load_trsl_mode,
+    save_trsl_mode,
+    clear_trsl_mode,
     clean_ollama,
     translate_zh_to_en,
     tts_edge,
     transcribe_audio,
     translate_and_speak,
     process_voice,
-    handle_c2e_mode_command,
+    handle_trsl_mode_command,
     TMP_DIR,
 )
 
@@ -46,53 +46,53 @@ class TestC2EModeManagement(unittest.TestCase):
         if os.path.exists(self.mode_path):
             os.remove(self.mode_path)
 
-    def test_load_c2e_mode_not_exists(self):
+    def test_load_trsl_mode_not_exists(self):
         """测试模式文件不存在时返回 None"""
-        result = load_c2e_mode()
+        result = load_trsl_mode()
         self.assertIsNone(result)
 
-    def test_save_and_load_c2e_mode(self):
+    def test_save_and_load_trsl_mode(self):
         """测试保存和加载 C2E 模式"""
-        save_c2e_mode("c2e")
-        result = load_c2e_mode()
-        self.assertEqual(result, "c2e")
+        save_trsl_mode("trsl")
+        result = load_trsl_mode()
+        self.assertEqual(result, "trsl")
 
-    def test_clear_c2e_mode(self):
+    def test_clear_trsl_mode(self):
         """测试清除 C2E 模式"""
-        save_c2e_mode("c2e")
-        clear_c2e_mode()
-        result = load_c2e_mode()
+        save_trsl_mode("trsl")
+        clear_trsl_mode()
+        result = load_trsl_mode()
         self.assertIsNone(result)
 
-    def test_save_c2e_mode_preserves_aliyun(self):
+    def test_save_trsl_mode_preserves_aliyun(self):
         """测试保存 C2E 模式时保留 aliyun 模式"""
         # 先设置 aliyun 模式
         with open(self.mode_path, "w") as f:
             json.dump({"aliyun": "解题模式"}, f)
         
-        # 保存 c2e 模式
-        save_c2e_mode("c2e")
+        # 保存 trsl 模式
+        save_trsl_mode("trsl")
         
         # 验证两者都存在
         with open(self.mode_path) as f:
             data = json.load(f)
         self.assertEqual(data["aliyun"], "解题模式")
-        self.assertEqual(data["c2e"], "c2e")
+        self.assertEqual(data["trsl"], "trsl")
 
-    def test_clear_c2e_mode_preserves_aliyun(self):
+    def test_clear_trsl_mode_preserves_aliyun(self):
         """测试清除 C2E 模式时保留 aliyun 模式"""
         # 设置两种模式
         with open(self.mode_path, "w") as f:
-            json.dump({"aliyun": "解题模式", "c2e": "c2e"}, f)
+            json.dump({"aliyun": "解题模式", "trsl": "trsl"}, f)
         
-        # 只清除 c2e
-        clear_c2e_mode()
+        # 只清除 trsl
+        clear_trsl_mode()
         
         # 验证 aliyun 还在
         with open(self.mode_path) as f:
             data = json.load(f)
         self.assertEqual(data["aliyun"], "解题模式")
-        self.assertNotIn("c2e", data)
+        self.assertNotIn("trsl", data)
 
 
 class TestCleanOllama(unittest.TestCase):
@@ -132,8 +132,8 @@ class TestTranslateZhToEn(unittest.TestCase):
             self.skipTest("openai library not installed")
         
         # If openai is installed, run the actual test
-        with patch("c2e_handler.MINIMAX_API_KEY", "test-key"):
-            with patch("c2e_handler.MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic"):
+        with patch("trsl_handler.MINIMAX_API_KEY", "test-key"):
+            with patch("trsl_handler.MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic"):
                 with patch("openai.OpenAI") as mock_openai:
                     mock_client = MagicMock()
                     mock_openai.return_value = mock_client
@@ -146,8 +146,8 @@ class TestTranslateZhToEn(unittest.TestCase):
                     self.assertEqual(result, "Hello world")
                     mock_client.chat.completions.create.assert_called_once()
 
-    @patch("c2e_handler.MINIMAX_API_KEY", "")
-    @patch("c2e_handler.run_cmd")
+    @patch("trsl_handler.MINIMAX_API_KEY", "")
+    @patch("trsl_handler.run_cmd")
     def test_translate_with_ollama(self, mock_run_cmd):
         """测试使用 Ollama 翻译（fallback）"""
         mock_run_cmd.return_value = "Hello world"
@@ -157,9 +157,9 @@ class TestTranslateZhToEn(unittest.TestCase):
         self.assertEqual(result, "Hello world")
         mock_run_cmd.assert_called_once()
 
-    @patch("c2e_handler.MINIMAX_API_KEY", "")
-    @patch("c2e_handler.run_cmd")
-    def test_translate_preserves_numbers(self, mock_run_cmd):
+    @patch("trsl_handler.MINIMAX_API_KEY", "")
+    @patch("trsl_handler.run_cmd")
+    def test_trsl_preserves_numbers(self, mock_run_cmd):
         """测试翻译保留数字和 ID"""
         mock_run_cmd.return_value = "User 123 logged in at 2024-01-15"
         
@@ -172,10 +172,10 @@ class TestTranslateZhToEn(unittest.TestCase):
 class TestTTSEdge(unittest.TestCase):
     """Edge TTS 语音合成测试"""
 
-    @patch("c2e_handler.NODE_BIN", "node")
-    @patch("c2e_handler.EDGE_TTS_SCRIPT", "/fake/path/tts-converter.js")
-    @patch("c2e_handler.run_cmd")
-    @patch("c2e_handler.Path.exists")
+    @patch("trsl_handler.NODE_BIN", "node")
+    @patch("trsl_handler.EDGE_TTS_SCRIPT", "/fake/path/tts-converter.js")
+    @patch("trsl_handler.run_cmd")
+    @patch("trsl_handler.Path.exists")
     def test_tts_success(self, mock_exists, mock_run_cmd):
         """测试 TTS 成功"""
         mock_exists.return_value = True
@@ -186,8 +186,8 @@ class TestTTSEdge(unittest.TestCase):
         self.assertEqual(result, out_mp3)
         mock_run_cmd.assert_called_once()
 
-    @patch("c2e_handler.EDGE_TTS_SCRIPT", "/fake/path/tts-converter.js")
-    @patch("c2e_handler.Path.exists")
+    @patch("trsl_handler.EDGE_TTS_SCRIPT", "/fake/path/tts-converter.js")
+    @patch("trsl_handler.Path.exists")
     def test_tts_script_not_found(self, mock_exists):
         """测试 TTS 脚本不存在"""
         mock_exists.return_value = False
@@ -202,7 +202,7 @@ class TestTranscribeAudio(unittest.TestCase):
     """Whisper 语音识别测试"""
 
     @unittest.skip("whisper")
-    @patch("c2e_handler.whisper")
+    @patch("trsl_handler.whisper")
     def test_transcribe_success(self, mock_whisper):
         """测试语音识别成功"""
         mock_model = MagicMock()
@@ -214,7 +214,7 @@ class TestTranscribeAudio(unittest.TestCase):
         self.assertEqual(result, "你好世界")
 
     @unittest.skip("whisper")
-    @patch("c2e_handler.whisper")
+    @patch("trsl_handler.whisper")
     def test_transcribe_failure(self, mock_whisper):
         """测试语音识别失败"""
         mock_whisper.load_model.side_effect = Exception("model not found")
@@ -228,23 +228,23 @@ class TestTranscribeAudio(unittest.TestCase):
 class TestTranslateAndSpeak(unittest.TestCase):
     """翻译 + 语音合成联合测试"""
 
-    @patch("c2e_handler.translate_zh_to_en")
-    @patch("c2e_handler.tts_edge")
-    @patch("c2e_handler.TMP_DIR")
+    @patch("trsl_handler.translate_zh_to_en")
+    @patch("trsl_handler.tts_edge")
+    @patch("trsl_handler.TMP_DIR")
     def test_translate_and_speak_success(self, mock_tmp, mock_tts, mock_translate):
         """测试翻译并生成语音"""
         mock_translate.return_value = "Hello world"
         mock_tmp.mkdir = MagicMock()
         
         mock_out_mp3 = MagicMock()
-        mock_out_mp3.__str__ = lambda self: "/tmp/c2e_test.mp3"
+        mock_out_mp3.__str__ = lambda self: "/tmp/trsl_test.mp3"
         mock_tts.return_value = mock_out_mp3
         
         result = translate_and_speak("你好世界")
-        
-        self.assertIn("english", result)
+
+        self.assertIn("translated", result)
         self.assertIn("audio_path", result)
-        self.assertEqual(result["english"], "Hello world")
+        self.assertEqual(result["translated"], "Hello world")
         mock_translate.assert_called_once()
         mock_tts.assert_called_once()
 
@@ -253,10 +253,10 @@ class TestProcessVoice(unittest.TestCase):
     """语音处理全流程测试"""
 
     @unittest.skip("whisper")
-    @patch("c2e_handler.transcribe_audio")
-    @patch("c2e_handler.translate_zh_to_en")
-    @patch("c2e_handler.tts_edge")
-    @patch("c2e_handler.TMP_DIR")
+    @patch("trsl_handler.transcribe_audio")
+    @patch("trsl_handler.translate_zh_to_en")
+    @patch("trsl_handler.tts_edge")
+    @patch("trsl_handler.TMP_DIR")
     def test_process_voice_success(self, mock_tmp, mock_tts, mock_translate, mock_transcribe):
         """测试语音处理全流程"""
         mock_transcribe.return_value = "你好世界"
@@ -264,55 +264,55 @@ class TestProcessVoice(unittest.TestCase):
         mock_tmp.mkdir = MagicMock()
         
         mock_out_mp3 = MagicMock()
-        mock_out_mp3.__str__ = lambda self: "/tmp/c2e_voice_test.mp3"
+        mock_out_mp3.__str__ = lambda self: "/tmp/trsl_voice_test.mp3"
         mock_tts.return_value = mock_out_mp3
         
         result = process_voice("/tmp/voice.mp3")
         
         self.assertEqual(result["chinese"], "你好世界")
-        self.assertEqual(result["english"], "Hello world")
+        self.assertEqual(result["translated"], "Hello world")
         self.assertIn("audio_path", result)
 
 
 class TestHandleC2ECommand(unittest.TestCase):
     """C2E 命令处理测试"""
 
-    def test_enter_c2e_mode_chinese(self):
+    def test_enter_trsl_mode_chinese(self):
         """测试进入翻译模式（中文命令）"""
-        result = handle_c2e_mode_command("翻译模式")
+        result = handle_trsl_mode_command("翻译模式")
         self.assertIsNotNone(result)
         self.assertIn("已进入翻译模式", result)
-        self.assertEqual(load_c2e_mode(), "c2e")
+        self.assertEqual(load_trsl_mode(), "trsl")
 
-    def test_enter_c2e_mode_english(self):
+    def test_enter_trsl_mode_english(self):
         """测试进入翻译模式（英文命令）"""
-        result = handle_c2e_mode_command("c2e")
+        result = handle_trsl_mode_command("trsl")
         self.assertIsNotNone(result)
         self.assertIn("已进入翻译模式", result)
 
-    def test_exit_c2e_mode_chinese(self):
+    def test_exit_trsl_mode_chinese(self):
         """测试退出翻译模式（中文命令）"""
-        save_c2e_mode("c2e")
-        result = handle_c2e_mode_command("解除模式")
+        save_trsl_mode("trsl")
+        result = handle_trsl_mode_command("解除模式")
         self.assertIsNotNone(result)
         self.assertIn("已解除翻译模式", result)
-        self.assertIsNone(load_c2e_mode())
+        self.assertIsNone(load_trsl_mode())
 
-    def test_exit_c2e_mode_english(self):
+    def test_exit_trsl_mode_english(self):
         """测试退出翻译模式（英文命令）"""
-        save_c2e_mode("c2e")
-        result = handle_c2e_mode_command("c2e-exit")
+        save_trsl_mode("trsl")
+        result = handle_trsl_mode_command("trsl-exit")
         self.assertIsNotNone(result)
         self.assertIn("已解除翻译模式", result)
 
     def test_unrelated_command(self):
         """测试无关命令不处理"""
-        result = handle_c2e_mode_command("今天天气不错")
+        result = handle_trsl_mode_command("今天天气不错")
         self.assertIsNone(result)
 
     def test_command_with_whitespace(self):
         """测试命令带空白字符"""
-        result = handle_c2e_mode_command("  翻译模式  \n")
+        result = handle_trsl_mode_command("  翻译模式  \n")
         self.assertIsNotNone(result)
         self.assertIn("已进入翻译模式", result)
 
@@ -320,43 +320,43 @@ class TestHandleC2ECommand(unittest.TestCase):
 class TestIntegration(unittest.TestCase):
     """集成测试"""
 
-    @patch("c2e_handler.handle_c2e_mode_command")
-    @patch("c2e_handler.translate_and_speak")
+    @patch("trsl_handler.handle_trsl_mode_command")
+    @patch("trsl_handler.translate_and_speak")
     def test_full_text_flow(self, mock_translate, mock_handle):
         """测试完整文本翻译流程"""
         mock_handle.return_value = None  # 不是模式命令
         mock_translate.return_value = {
-            "english": "Hello world",
+            "translated": "Hello world",
             "audio_path": "/tmp/test.mp3"
         }
         
         # 模拟接收到文本消息
         text = "你好世界"
-        c2e_mode = load_c2e_mode()
+        trsl_mode = load_trsl_mode()
         
-        if c2e_mode == "c2e":
+        if trsl_mode == "trsl":
             result = translate_and_speak(text)
-            self.assertEqual(result["english"], "Hello world")
+            self.assertEqual(result["translated"], "Hello world")
 
-    @patch("c2e_handler.handle_c2e_mode_command")
-    @patch("c2e_handler.process_voice")
+    @patch("trsl_handler.handle_trsl_mode_command")
+    @patch("trsl_handler.process_voice")
     def test_full_voice_flow(self, mock_process, mock_handle):
         """测试完整语音翻译流程"""
         mock_handle.return_value = None  # 不是模式命令
         mock_process.return_value = {
-            "chinese": "你好世界",
-            "english": "Hello world",
+            "source": "你好世界",
+            "translated": "Hello world",
             "audio_path": "/tmp/test.mp3"
         }
         
         # 模拟接收到语音消息
         voice_path = "/tmp/voice.mp3"
-        c2e_mode = load_c2e_mode()
+        trsl_mode = load_trsl_mode()
         
-        if c2e_mode == "c2e":
+        if trsl_mode == "trsl":
             result = process_voice(voice_path)
             self.assertEqual(result["chinese"], "你好世界")
-            self.assertEqual(result["english"], "Hello world")
+            self.assertEqual(result["translated"], "Hello world")
 
 
 def run_tests():

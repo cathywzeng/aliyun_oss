@@ -97,14 +97,14 @@ async function _aliyunModeCheck(
     }
     if (textBody === "解除模式" || textBody === "清空模式" || textBody === "退出模式") {
       const prev = mode;
-      // Clear both aliyun and c2e modes
+      // Clear both aliyun and trsl modes
       await writeFile(MODE_FILE, JSON.stringify({ mode: null }), "utf-8");
-      // Also clear c2e if present in mode file
+      // Also clear trsl if present in mode file
       try {
         const { readFile, writeFile: wf } = await import("node:fs/promises");
         const raw = await readFile(MODE_FILE, "utf-8");
         const data = JSON.parse(raw);
-        delete data["c2e"];
+        delete data["trsl"];
         await wf(MODE_FILE, JSON.stringify(data), "utf-8");
       } catch { /* ignore */ }
       _aliyunInterceptReply = prev ? `已解除${prev}，模式已清空` : "当前无模式，已清空";
@@ -119,35 +119,35 @@ async function _aliyunModeCheck(
 // === ALIYUN HANDLER PATCH END ===
 
 // === C2E MODE CHECK START ===
-let _c2eInterceptReply: string | null = null;
-let _c2eInterceptMode: boolean = false;
+let _trslInterceptReply: string | null = null;
+let _trslInterceptMode: boolean = false;
 
-async function _c2eModeCheck(
+async function _trslModeCheck(
   textBody: string,
 ): Promise<{ intercept: boolean }> {
   const MODE_FILE = os.homedir() + "/.openclaw/memory/weixin_mode.json";
   try {
     const { readFile, writeFile } = await import("node:fs/promises");
-    let modeData: { c2e?: string | null; [key: string]: unknown } = {};
+    let modeData: { trsl?: string | null; [key: string]: unknown } = {};
     try {
       const raw = await readFile(MODE_FILE, "utf-8");
       modeData = JSON.parse(raw);
     } catch { /* no mode file */ }
 
-    const c2eMode = modeData?.c2e;
-    if (textBody === "翻译模式" || textBody === "c2e") {
-      await writeFile(MODE_FILE, JSON.stringify({ ...modeData, c2e: "c2e" }), "utf-8");
-      _c2eInterceptReply = "已进入翻译模式，请发送中文文本或语音~";
+    const trslMode = modeData?.trsl;
+    if (textBody === "翻译模式" || textBody === "trsl") {
+      await writeFile(MODE_FILE, JSON.stringify({ ...modeData, trsl: "trsl" }), "utf-8");
+      _trslInterceptReply = "已进入翻译模式，请发送中文或英文文本或语音~";
       return { intercept: true };
     }
-    if (textBody === "解除模式" || textBody === "c2e-exit") {
-      // Only clear c2e state; aliyun owns the unified exit reply.
+    if (textBody === "解除模式" || textBody === "trsl-exit") {
+      // Only clear trsl state; aliyun owns the unified exit reply.
       const newData = { ...modeData };
-      delete newData.c2e;
+      delete newData.trsl;
       await writeFile(MODE_FILE, JSON.stringify(newData), "utf-8");
       return { intercept: false }; // let aliyun handle the reply
     }
-    _c2eInterceptMode = c2eMode === "c2e";
+    _trslInterceptMode = trslMode === "trsl";
     return { intercept: false };
   } catch {
     return { intercept: false };
@@ -201,7 +201,7 @@ export async function processOneMessage(
 
   // Check if this is a mode-setting text message (before slash command check)
   await _aliyunModeCheck(textBody);
-  await _c2eModeCheck(textBody);
+  await _trslModeCheck(textBody);
   if (textBody.startsWith("/")) {
     const slashResult = await handleSlashCommand(textBody, {
       to: full.from_user_id ?? "",
@@ -302,16 +302,16 @@ export async function processOneMessage(
   // === ALIYUN REPLY INTERCEPT END ===
 
   // === C2E REPLY INTERCEPT START ===
-  if (_c2eInterceptReply) {
-    const replyText = _c2eInterceptReply;
-    _c2eInterceptReply = null;
+  if (_trslInterceptReply) {
+    const replyText = _trslInterceptReply;
+    _trslInterceptReply = null;
     try {
       await sendMessageWeixin({
         to: full.from_user_id ?? "",
         text: replyText,
         opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: full.context_token ?? undefined },
       });
-    } catch (e) { deps.errLog(`c2e reply intercept error: ${String(e)}`); }
+    } catch (e) { deps.errLog(`trsl reply intercept error: ${String(e)}`); }
     return;
   }
   // === C2E REPLY INTERCEPT END ===
@@ -357,7 +357,7 @@ export async function processOneMessage(
   // === ALIYUN IMAGE INTERCEPT END ===
 
   // === C2E INTERCEPT START ===
-  if (_c2eInterceptMode && (textBody || mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
+  if (_trslInterceptMode && (textBody || mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
     let voiceText: string | null = null;
     if (full?.item_list) {
       for (const item of full.item_list) {
@@ -371,7 +371,7 @@ export async function processOneMessage(
     else {
       try {
         const { execFile } = await import("node:child_process");
-        const scriptPath = SKILL_DIR + "/scripts/c2e_handler.py";
+        const scriptPath = SKILL_DIR + "/scripts/trsl_handler.py";
         let pythonArgs: string[];
         let timeout: number;
         if (hasVoice) {
@@ -384,7 +384,7 @@ export async function processOneMessage(
           pythonArgs = ['--chinese-text', textBody!, '--output', 'json'];
           timeout = 120000;
         }
-        logger.info(`[c2e] execFile python: hasVoice=${hasVoice} hasText=${hasText}`);
+        logger.info(`[trsl] execFile python: hasVoice=${hasVoice} hasText=${hasText}`);
         const { stdout: pyStdout } = await new Promise((resolve, reject) => {
           execFile('/usr/bin/python3', [scriptPath, ...pythonArgs], { timeout, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
             if (err) {
@@ -395,13 +395,13 @@ export async function processOneMessage(
             }
           });
         });
-        logger.info("[c2e] python stdout: " + pyStdout.substring(0, 100));
+        logger.info("[trsl] python stdout: " + pyStdout.substring(0, 100));
         const parsed = JSON.parse(pyStdout);
-        const english = parsed.english || "Translation complete";
+        const translated = parsed.translated || "Translation complete";
         const audioPath = parsed.audio_path;
         await sendMessageWeixin({
           to: ctx.To,
-          text: english,
+          text: translated,
           opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
         });
         if (audioPath) {
@@ -412,13 +412,13 @@ export async function processOneMessage(
               opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
               cdnBaseUrl: deps.cdnBaseUrl,
             });
-          } catch (e) { deps.errLog(`[c2e] audio send error: ${String(e)}`); }
+          } catch (e) { deps.errLog(`[trsl] audio send error: ${String(e)}`); }
         }
-        logger.info("[c2e] intercepted and handled");
+        logger.info("[trsl] intercepted and handled");
         return;
       } catch (err) {
         const errMsg = String(err);
-        logger.error(`[c2e] intercept error: ${errMsg}`);
+        logger.error(`[trsl] intercept error: ${errMsg}`);
         let replyText = "⚠️ 翻译处理失败，请稍后重试";
         if (errMsg.includes("ETIMEDOUT") || errMsg.includes("TimedOut")) replyText = "⚠️ 翻译处理超时，请稍后重试";
         else if (errMsg.includes("ENOENT") || errMsg.includes("not found")) replyText = "⚠️ 翻译脚本未找到，请检查配置";
@@ -428,7 +428,7 @@ export async function processOneMessage(
             text: replyText,
             opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
           });
-        } catch (e2) { deps.errLog(`[c2e] reply error: ${String(e2)}`); }
+        } catch (e2) { deps.errLog(`[trsl] reply error: ${String(e2)}`); }
         return;
       }
     }
@@ -436,12 +436,12 @@ export async function processOneMessage(
   // === C2E INTERCEPT END ===
 
   // === C2E IMAGE WARNING START ===
-  if (_c2eInterceptMode && (mediaOpts?.decryptedPicPath || mediaOpts?.decryptedVideoPath || mediaOpts?.decryptedFilePath)) {
+  if (_trslInterceptMode && (mediaOpts?.decryptedPicPath || mediaOpts?.decryptedVideoPath || mediaOpts?.decryptedFilePath)) {
     sendMessageWeixin({
       to: ctx.To,
       text: "⚠️ 翻译模式仅支持文字和语音，请发送文字或语音消息",
       opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken: getContextTokenFromMsgContext(ctx) },
-    }).catch(e => deps.errLog(`[c2e] image warning error: ${String(e)}`));
+    }).catch(e => deps.errLog(`[trsl] image warning error: ${String(e)}`));
     return;
   }
   // === C2E IMAGE WARNING END ===
