@@ -15,16 +15,24 @@
 
 ```
 curiousbuddy/
-├── SKILL.md              # Skill 定义文件
+├── SKILL.md                   # Skill 定义文件
+├── setup.sh                   # 一键安装脚本
+├── env_config.json            # 配置文件模板
 ├── scripts/
-│   ├── aliyun_handler.py # 阿里云解题/批改处理器
-│   ├── trsl_handler.py     # TRSL 翻译模式处理器
-│   ├── oss_uploader.py    # OSS 上传工具
-│   ├── call_api.py        # 通义千问 API 调用
-│   ├── latex_to_unicode.py # LaTeX 转 Unicode
-│   └── test_trsl_handler.py # TRSL 测试脚本
-├── patches/              # 补丁文件（按版本）
-└── memory/               # 配置和模式（不提交）
+│   ├── aliyun_handler.py      # 阿里云解题/批改处理器
+│   ├── trsl_handler.py         # TRSL 翻译模式处理器
+│   ├── oss_uploader.py        # OSS 上传工具
+│   ├── call_api.py            # 通义千问 API 调用
+│   ├── latex_to_unicode.py    # LaTeX 转 Unicode
+│   ├── check_and_patch.py     # 补丁管理
+│   └── test_trsl_handler.py    # TRSL 测试脚本
+├── trsl/
+│   ├── tts-converter.js       # Edge TTS 转换脚本
+│   └── package.json           # Node.js 依赖
+└── patches/
+    ├── process-message.ts.original  # 原始干净文件
+    ├── process-message.ts.current  # 已打补丁文件
+    └── process-message.ts.patch    # 补丁文件
 ```
 
 ## 首次配置
@@ -74,27 +82,21 @@ python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 
 ## 使用方法
 
-### 解题/批改模式
+### 解题/批改/解题思路模式
 
-- 发送 `解题模式` → 进入解题模式
-- 发送 `批改模式` → 进入批改模式
+- 发送 `解题模式` / `批改模式` / `解题思路` → 进入对应模式
 - 发送图片 → AI 处理并返回结果
-- 发送 `解除模式` → 清除模式
+- 发送 `解除模式`  或 `退出模式` → 清除模式
 
-### 解题思路模式
-
-- 发送 `解题思路` → 进入解题思路模式
-- 发送题目图片 → AI 返回考点分析和方法点拨（不给最终答案）
-- 与解题模式、批改模式共用阿里云拦截通道
-- 发送 `解除模式` → 清除模式
-
-### 翻译模式（TRSL）
+### TRSL 翻译模式
 
 - 发送 `翻译模式` 或 `trsl` → 进入翻译模式
 - 发送中文文本 → 返回英文翻译 + 英文语音
-- 发送中文语音 → Whisper 转录 → 英文翻译 + 英文语音
-- 发送图片 → 回复警告"⚠️ 翻译模式仅支持文字和语音"
-- 发送 `解除模式` 或 `trsl-exit` → 清除翻译模式
+- 发送中文语音 → wechat 转录 → 英文翻译 + 英文语音
+- 发送英文文本 → 返回中文翻译 + 中文语音
+- 发送英文语音 → wechat 转录 → 中文翻译 + 中文语音
+- 发送 `解除模式` 或 `退出模式` → 清除翻译模式
+
 
 ## 补丁管理
 
