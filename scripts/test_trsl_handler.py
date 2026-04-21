@@ -15,7 +15,7 @@ from unittest.mock import patch, MagicMock, mock_open
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-from scripts.trsl_handler import (
+from trsl_handler import (
     load_trsl_mode,
     save_trsl_mode,
     clear_trsl_mode,
@@ -124,47 +124,50 @@ class TestCleanOllama(unittest.TestCase):
 class TestTranslateZhToEn(unittest.TestCase):
     """中文翻译英文测试"""
 
-    def test_translate_with_minimax_skip(self):
-        """测试使用 MiniMax API 翻译 - 跳过（需要 openai 库）"""
-        try:
-            import openai  # noqa: F401
-        except ImportError:
-            self.skipTest("openai library not installed")
-        
-        # If openai is installed, run the actual test
-        with patch("trsl_handler.MINIMAX_API_KEY", "test-key"):
-            with patch("trsl_handler.MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic"):
-                with patch("openai.OpenAI") as mock_openai:
-                    mock_client = MagicMock()
-                    mock_openai.return_value = mock_client
-                    mock_client.chat.completions.create.return_value = MagicMock(
-                        choices=[MagicMock(message=MagicMock(content="Hello world"))]
-                    )
+    @patch("trsl_handler.requests.post")
+    @patch("trsl_handler.MINIMAX_API_KEY", "test-key")
+    @patch("trsl_handler.MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic")
+    def test_translate_with_minimax(self, mock_post):
+        """测试使用 MiniMax API 翻译"""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "content": [{"type": "text", "text": "Hello world"}]
+        }
+        mock_post.return_value = mock_response
 
-                    result = translate_zh_to_en("你好世界")
-                    
-                    self.assertEqual(result, "Hello world")
-                    mock_client.chat.completions.create.assert_called_once()
-
-    @patch("trsl_handler.MINIMAX_API_KEY", "")
-    @patch("trsl_handler.run_cmd")
-    def test_translate_with_ollama(self, mock_run_cmd):
-        """测试使用 Ollama 翻译（fallback）"""
-        mock_run_cmd.return_value = "Hello world"
-        
         result = translate_zh_to_en("你好世界")
-        
+
         self.assertEqual(result, "Hello world")
-        mock_run_cmd.assert_called_once()
+        mock_post.assert_called_once()
 
     @patch("trsl_handler.MINIMAX_API_KEY", "")
-    @patch("trsl_handler.run_cmd")
-    def test_trsl_preserves_numbers(self, mock_run_cmd):
+    @patch("urllib.request.urlopen")
+    def test_translate_with_ollama(self, mock_urlopen):
+        """测试使用 Ollama 翻译（fallback）"""
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({"response": "Hello world"}).encode()
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_response
+
+        result = translate_zh_to_en("你好世界")
+
+        self.assertEqual(result, "Hello world")
+        mock_urlopen.assert_called_once()
+
+    @patch("trsl_handler.MINIMAX_API_KEY", "")
+    @patch("urllib.request.urlopen")
+    def test_trsl_preserves_numbers(self, mock_urlopen):
         """测试翻译保留数字和 ID"""
-        mock_run_cmd.return_value = "User 123 logged in at 2024-01-15"
-        
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({"response": "User 123 logged in at 2024-01-15"}).encode()
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_response
+
         result = translate_zh_to_en("用户 123 在 2024-01-15 登录")
-        
+
         self.assertIn("123", result)
         self.assertIn("2024-01-15", result)
 
