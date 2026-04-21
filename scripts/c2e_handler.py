@@ -291,7 +291,7 @@ def handle_c2e_mode_command(text: str) -> Optional[str]:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="C2E 翻译模式处理器")
+    parser = ArgumentParser(description="C2E 翻译模式处理器")
     parser.add_argument("--text", help="中文文本输入（手动输入）")
     parser.add_argument("--voice", help="语音文件路径（自动转写）")
     parser.add_argument("--chinese-text", help="微信已转写的中文文本（跳过 Whisper，直接翻译）")
