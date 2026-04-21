@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C2E (Chinese→English) 翻译模式处理器
+TRSL (Chinese→English) 翻译模式处理器
 整合 Ollama 翻译 + Edge TTS 语音合成 + Whisper 语音识别
 用于微信渠道的实时翻译模式
 """
@@ -362,7 +362,7 @@ def process_voice(voice_path: str) -> dict:
 
 def handle_trsl_mode_command(text: str) -> Optional[str]:
     """
-    处理 C2E 模式命令
+    处理 TRSL 模式命令
     "翻译模式" / "trsl" → 进入翻译模式
     "解除模式" / "trsl-exit" → 退出翻译模式
     返回: 回复文本或 None（不处理）
@@ -381,7 +381,7 @@ def handle_trsl_mode_command(text: str) -> Optional[str]:
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="C2E 翻译模式处理器")
+    parser = ArgumentParser(description="TRSL 翻译模式处理器")
     parser.add_argument("--text", help="文本输入")
     parser.add_argument("--voice", help="语音文件路径（自动转写）")
     parser.add_argument("--chinese-text", help="已转写文本（跳过 Whisper，直接翻译，双向自动检测语言）")

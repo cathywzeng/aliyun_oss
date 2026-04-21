@@ -29,13 +29,13 @@ echo "✅ Deployed"
 # 3. Create memory directory
 mkdir -p ~/.openclaw/memory
 
-# 4. Install Node.js dependencies for c2e
-echo "=== Installing c2e Node.js dependencies ==="
-if [ -d ~/.openclaw/skills/curiousbuddy/c2e ]; then
-    (cd ~/.openclaw/skills/curiousbuddy/c2e && npm install)
-    echo "✅ c2e npm dependencies installed"
+# 4. Install Node.js dependencies for trsl
+echo "=== Installing trsl Node.js dependencies ==="
+if [ -d ~/.openclaw/skills/curiousbuddy/trsl ]; then
+    (cd ~/.openclaw/skills/curiousbuddy/trsl && npm install)
+    echo "✅ trsl npm dependencies installed"
 else
-    echo "⚠️  c2e directory not found, skipping npm install"
+    echo "⚠️  trsl directory not found, skipping npm install"
 fi
 
 # 2. Check env_config.json

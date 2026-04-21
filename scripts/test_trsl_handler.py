@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C2E 翻译模式处理器单元测试用例
+TRSL 翻译模式处理器单元测试用例
 测试覆盖：翻译、TTS、语音识别、模式管理、命令处理
 """
 
@@ -30,8 +30,8 @@ from trsl_handler import (
 )
 
 
-class TestC2EModeManagement(unittest.TestCase):
-    """C2E 模式状态管理测试"""
+class TestTRSLModeManagement(unittest.TestCase):
+    """TRSL 模式状态管理测试"""
 
     def setUp(self):
         """测试前准备"""
@@ -52,20 +52,20 @@ class TestC2EModeManagement(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_save_and_load_trsl_mode(self):
-        """测试保存和加载 C2E 模式"""
+        """测试保存和加载 TRSL 模式"""
         save_trsl_mode("trsl")
         result = load_trsl_mode()
         self.assertEqual(result, "trsl")
 
     def test_clear_trsl_mode(self):
-        """测试清除 C2E 模式"""
+        """测试清除 TRSL 模式"""
         save_trsl_mode("trsl")
         clear_trsl_mode()
         result = load_trsl_mode()
         self.assertIsNone(result)
 
     def test_save_trsl_mode_preserves_aliyun(self):
-        """测试保存 C2E 模式时保留 aliyun 模式"""
+        """测试保存 TRSL 模式时保留 aliyun 模式"""
         # 先设置 aliyun 模式
         with open(self.mode_path, "w") as f:
             json.dump({"aliyun": "解题模式"}, f)
@@ -80,7 +80,7 @@ class TestC2EModeManagement(unittest.TestCase):
         self.assertEqual(data["trsl"], "trsl")
 
     def test_clear_trsl_mode_preserves_aliyun(self):
-        """测试清除 C2E 模式时保留 aliyun 模式"""
+        """测试清除 TRSL 模式时保留 aliyun 模式"""
         # 设置两种模式
         with open(self.mode_path, "w") as f:
             json.dump({"aliyun": "解题模式", "trsl": "trsl"}, f)
@@ -277,8 +277,8 @@ class TestProcessVoice(unittest.TestCase):
         self.assertIn("audio_path", result)
 
 
-class TestHandleC2ECommand(unittest.TestCase):
-    """C2E 命令处理测试"""
+class TestHandleTRSLCommand(unittest.TestCase):
+    """TRSL 命令处理测试"""
 
     def test_enter_trsl_mode_chinese(self):
         """测试进入翻译模式（中文命令）"""
@@ -368,14 +368,14 @@ def run_tests():
     suite = unittest.TestSuite()
     
     # 添加所有测试类
-    suite.addTests(loader.loadTestsFromTestCase(TestC2EModeManagement))
+    suite.addTests(loader.loadTestsFromTestCase(TestTRSLModeManagement))
     suite.addTests(loader.loadTestsFromTestCase(TestCleanOllama))
     suite.addTests(loader.loadTestsFromTestCase(TestTranslateZhToEn))
     suite.addTests(loader.loadTestsFromTestCase(TestTTSEdge))
     suite.addTests(loader.loadTestsFromTestCase(TestTranscribeAudio))
     suite.addTests(loader.loadTestsFromTestCase(TestTranslateAndSpeak))
     suite.addTests(loader.loadTestsFromTestCase(TestProcessVoice))
-    suite.addTests(loader.loadTestsFromTestCase(TestHandleC2ECommand))
+    suite.addTests(loader.loadTestsFromTestCase(TestHandleTRSLCommand))
     suite.addTests(loader.loadTestsFromTestCase(TestIntegration))
     
     # 运行测试

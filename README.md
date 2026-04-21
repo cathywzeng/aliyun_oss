@@ -1,6 +1,6 @@
 # curiousbuddy OpenClaw Skill
 
-阿里云 OSS + 通义千问 API 集成，用于 OpenClaw 微信渠道的 AI 解题/批改功能，以及 C2E 中英翻译功能。
+阿里云 OSS + 通义千问 API 集成，用于 OpenClaw 微信渠道的 AI 解题/批改功能，以及 TRSL 中英翻译功能。
 
 ## 功能
 
@@ -18,11 +18,11 @@ curiousbuddy/
 ├── SKILL.md              # Skill 定义文件
 ├── scripts/
 │   ├── aliyun_handler.py # 阿里云解题/批改处理器
-│   ├── c2e_handler.py     # C2E 翻译模式处理器
+│   ├── trsl_handler.py     # TRSL 翻译模式处理器
 │   ├── oss_uploader.py    # OSS 上传工具
 │   ├── call_api.py        # 通义千问 API 调用
 │   ├── latex_to_unicode.py # LaTeX 转 Unicode
-│   └── test_c2e_handler.py # C2E 测试脚本
+│   └── test_trsl_handler.py # TRSL 测试脚本
 ├── patches/              # 补丁文件（按版本）
 └── memory/               # 配置和模式（不提交）
 ```
@@ -44,17 +44,17 @@ curiousbuddy/
   "MINIMAX_API_KEY": "YOUR_MINIMAX_KEY",
   "MINIMAX_BASE_URL": "https://api.minimaxi.com/anthropic",
   "EDGE_TTS_MODULE_PATH": "/opt/homebrew/lib/node_modules/node-edge-tts",
-  "EDGE_TTS_SCRIPT": "~/.openclaw/skills/curiousbuddy/c2e/tts-converter.js",
+  "EDGE_TTS_SCRIPT": "~/.openclaw/skills/curiousbuddy/trsl/tts-converter.js",
   "NODE_BIN": "/opt/homebrew/bin/node",
   "OLLAMA_MODEL": "qwen2.5:7b-instruct",
   "OLLAMA_BIN": "ollama",
   "WHISPER_BIN": "",
   "FASTER_WHISPER_MODEL": "tiny",
-  "TMP_DIR": "/tmp/c2e-wechat"
+  "TMP_DIR": "/tmp/trsl-wechat"
 }
 ```
 
-> **注意**：C2E 翻译功能相关配置（如不使用可留空）：
+> **注意**：TRSL 翻译功能相关配置（如不使用可留空）：
 > - `MINIMAX_API_KEY` / `MINIMAX_BASE_URL` — MiniMax API 翻译
 > - `EDGE_TTS_MODULE_PATH` — Node.js 全局 node-edge-tts 模块路径
 > - `EDGE_TTS_SCRIPT` — Edge TTS 转换脚本路径
@@ -88,13 +88,13 @@ python3 ~/.openclaw/skills/curiousbuddy/scripts/check_and_patch.py
 - 与解题模式、批改模式共用阿里云拦截通道
 - 发送 `解除模式` → 清除模式
 
-### 翻译模式（C2E）
+### 翻译模式（TRSL）
 
-- 发送 `翻译模式` 或 `c2e` → 进入翻译模式
+- 发送 `翻译模式` 或 `trsl` → 进入翻译模式
 - 发送中文文本 → 返回英文翻译 + 英文语音
 - 发送中文语音 → Whisper 转录 → 英文翻译 + 英文语音
 - 发送图片 → 回复警告"⚠️ 翻译模式仅支持文字和语音"
-- 发送 `解除模式` 或 `c2e-exit` → 清除翻译模式
+- 发送 `解除模式` 或 `trsl-exit` → 清除翻译模式
 
 ## 补丁管理
 

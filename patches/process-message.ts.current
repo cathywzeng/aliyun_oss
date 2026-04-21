@@ -118,7 +118,7 @@ async function _aliyunModeCheck(
 }
 // === ALIYUN HANDLER PATCH END ===
 
-// === C2E MODE CHECK START ===
+// === TRSL MODE CHECK START ===
 let _trslInterceptReply: string | null = null;
 let _trslInterceptMode: boolean = false;
 
@@ -153,7 +153,7 @@ async function _trslModeCheck(
     return { intercept: false };
   }
 }
-// === C2E MODE CHECK END ===
+// === TRSL MODE CHECK END ===
 
 /** Check if message has a voice item (any voice, with or without local path). */
 function _hasVoiceItem(full: any): boolean {
@@ -301,7 +301,7 @@ export async function processOneMessage(
   }
   // === ALIYUN REPLY INTERCEPT END ===
 
-  // === C2E REPLY INTERCEPT START ===
+  // === TRSL REPLY INTERCEPT START ===
   if (_trslInterceptReply) {
     const replyText = _trslInterceptReply;
     _trslInterceptReply = null;
@@ -314,7 +314,7 @@ export async function processOneMessage(
     } catch (e) { deps.errLog(`trsl reply intercept error: ${String(e)}`); }
     return;
   }
-  // === C2E REPLY INTERCEPT END ===
+  // === TRSL REPLY INTERCEPT END ===
 
   // === ALIYUN IMAGE INTERCEPT START ===
   // curiousbuddy skill: 在解题/批改模式下，图片直接走 OSS+API 处理
@@ -356,7 +356,7 @@ export async function processOneMessage(
   }
   // === ALIYUN IMAGE INTERCEPT END ===
 
-  // === C2E INTERCEPT START ===
+  // === TRSL INTERCEPT START ===
   if (_trslInterceptMode && (textBody || mediaOpts?.decryptedVoicePath || _hasVoiceItem(full))) {
     let voiceText: string | null = null;
     if (full?.item_list) {
@@ -433,9 +433,9 @@ export async function processOneMessage(
       }
     }
   }
-  // === C2E INTERCEPT END ===
+  // === TRSL INTERCEPT END ===
 
-  // === C2E IMAGE WARNING START ===
+  // === TRSL IMAGE WARNING START ===
   if (_trslInterceptMode && (mediaOpts?.decryptedPicPath || mediaOpts?.decryptedVideoPath || mediaOpts?.decryptedFilePath)) {
     sendMessageWeixin({
       to: ctx.To,
@@ -444,7 +444,7 @@ export async function processOneMessage(
     }).catch(e => deps.errLog(`[trsl] image warning error: ${String(e)}`));
     return;
   }
-  // === C2E IMAGE WARNING END ===
+  // === TRSL IMAGE WARNING END ===
 
   // --- Framework command authorization ---
   const rawBody = ctx.Body?.trim() ?? "";
